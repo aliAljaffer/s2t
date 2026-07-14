@@ -62,16 +62,16 @@ $ s2t -n argocd -s argocd-initial-admin-secret -ojsonc # print as compact json (
 
 ### Flags
 
-| Flag                | Description                                                                                                                                            |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `-f`, `--file`      | Path to a file containing secret data; omit to read from stdin                                                                                         |
-| `-t`, `--format`    | Input format: `yaml`, `json`, `kv`, or `sealed-secret` (default `any`, auto-detected among yaml/json/kv; `sealed-secret` must be requested explicitly) |
-| `-s`, `--secret`    | Name of the secret to fetch live via `kubectl`                                                                                                         |
-| `-n`, `--namespace` | Kubernetes namespace (used with `--secret`; defaults to the kubeconfig's current context if omitted)                                                   |
-| `--kubeconfig`      | Path to the kubeconfig file to use (default `~/.kube/config`)                                                                                          |
-| `--only`            | Comma-separated list of keys to print                                                                                                                  |
-| `-o`, `--output`    | Output format: empty (plain), `env`, `json`, `jsonc`, or `yaml` (json/jsonc/yaml produce a patch-ready `stringData` manifest; jsonc is compact)        |
-| `-h`, `--help`      | Print usage                                                                                                                                            |
+| Flag                | Description                                                                                                                                     | Default                                                 |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| `-f`, `--file`      | Path to a file containing secret data                                                                                                           | `stdin`                                                 |
+| `-t`, `--format`    | Input format: `yaml`, `json`, `kv`, or `sealed-secret` (`sealed-secret` must be requested explicitly), if empty, use `any` which auto-detects   | `any`                                                   |
+| `-s`, `--secret`    | Name of the secret to fetch live via `kubectl`                                                                                                  | -                                                       |
+| `-n`, `--namespace` | Kubernetes namespace (used with `--secret`)                                                                                                     | defaults to the kubeconfig's current context if omitted |
+| `--kubeconfig`      | Path to the kubeconfig file to use                                                                                                              | `~/.kube/config`                                        |
+| `--only`            | Comma-separated list of keys to print                                                                                                           | -                                                       |
+| `-o`, `--output`    | Output format: empty (plain), `env`, `json`, `jsonc`, or `yaml` (json/jsonc/yaml produce a patch-ready `stringData` manifest; jsonc is compact) | empty                                                   |
+| `-h`, `--help`      | Print usage                                                                                                                                     | `false`                                                 |
 
 ### Real Use Cases
 
