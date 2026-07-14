@@ -41,7 +41,7 @@ func init() {
 	flags.StringVarP(&kubeconfig, "kubeconfig", "", "~/.kube/config", "path to the kubeconfig file to use.")
 	flags.StringVarP(&file, "file", "f", "", "path to a file containing secret data; omit to read from stdin")
 	flags.StringVarP(&format, "format", "t", "any", "input format: yaml, json, or kv (ignored when --secret is used)")
-	flags.StringVarP(&namespace, "namespace", "n", "", "kubernetes namespace (used with --secret)")
+	flags.StringVarP(&namespace, "namespace", "n", "", "kubernetes namespace (used with --secret; defaults to the kubeconfig's current context if omitted)")
 	flags.StringVarP(&secretName, "secret", "s", "", "name of the secret to fetch live via kubectl")
 	flags.StringVarP(&only, "only", "", "", "comma-separated list of keys to print out")
 	flags.StringVarP(&output, "output", "o", "", "output format: empty (plain), env, json, jsonc, or yaml (json/jsonc/yaml produce a kubectl-patch-ready stringData manifest; jsonc is compact/unindented)")
@@ -57,13 +57,18 @@ func completeNamespaces(cmd *cobra.Command, args []string, toComplete string) ([
 }
 
 // completeSecrets offers real secret names within the namespace already typed
-// on the command line (--namespace must come first; kubectl has no concept
-// of a secret name without one). No namespace yet means no completions.
+// on the command line, falling back to the kubeconfig's current-context
+// namespace (matching kubectl's own resolution) when --namespace isn't typed
+// yet.
 func completeSecrets(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
-	if namespace == "" {
+	ns := namespace
+	if ns == "" {
+		ns = kubectlCurrentNamespace(kubeconfig)
+	}
+	if ns == "" {
 		return nil, cobra.ShellCompDirectiveNoFileComp
 	}
-	return matchPrefix(kubectlResourceNames("secret", namespace, kubeconfig), toComplete), cobra.ShellCompDirectiveNoFileComp
+	return matchPrefix(kubectlResourceNames("secret", ns, kubeconfig), toComplete), cobra.ShellCompDirectiveNoFileComp
 }
 
 func matchPrefix(names []string, prefix string) []string {
@@ -95,7 +100,10 @@ func run(cmd *cobra.Command, file, format, namespace, secretName, only, output, 
 	switch {
 	case secretName != "":
 		if namespace == "" {
-			return errors.New("--namespace is required when using --secret")
+			namespace, err = resolveNamespace(kubeconfig)
+			if err != nil {
+				return fmt.Errorf("resolving current namespace: %w", err)
+			}
 		}
 		raw, err = fetchSecretJSON(namespace, secretName, kubeconfig)
 		format = "json" // kubectl -o json always produces JSON, so we force the parser choice

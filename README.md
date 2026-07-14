@@ -1,5 +1,10 @@
 # s2t
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="images/s2t-logo-dark.png">
+  <img src="images/s2t-logo-light.png" alt="s2t — secret to text">
+</picture>
+
 [![CI](https://github.com/aljaffer/s2t/actions/workflows/ci.yml/badge.svg)](https://github.com/aljaffer/s2t/actions/workflows/ci.yml)
 
 A small CLI that decodes Kubernetes Secrets into readable key/value pairs.
@@ -41,16 +46,16 @@ Examples:
 
 ### Flags
 
-| Flag                  | Description                                                                            |
-| --------------------- | ---------------------------------------------------------------------------------------- |
-| `-f`, `--file`         | Path to a file containing secret data; omit to read from stdin                           |
-| `-t`, `--format`       | Input format: `yaml`, `json`, or `kv` (default `any`, auto-detected)                      |
-| `-s`, `--secret`       | Name of the secret to fetch live via `kubectl`                                           |
-| `-n`, `--namespace`    | Kubernetes namespace (required with `--secret`)                                          |
-| `--kubeconfig`         | Path to the kubeconfig file to use (default `~/.kube/config`)                             |
-| `--only`               | Comma-separated list of keys to print                                                    |
-| `-o`, `--output`       | Output format: empty (plain), `env`, `json`, `jsonc`, or `yaml` (json/jsonc/yaml produce a patch-ready `stringData` manifest; jsonc is compact) |
-| `-h`, `--help`         | Print usage                                                                               |
+| Flag                | Description                                                                                                                                     |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `-f`, `--file`      | Path to a file containing secret data; omit to read from stdin                                                                                  |
+| `-t`, `--format`    | Input format: `yaml`, `json`, or `kv` (default `any`, auto-detected)                                                                            |
+| `-s`, `--secret`    | Name of the secret to fetch live via `kubectl`                                                                                                  |
+| `-n`, `--namespace` | Kubernetes namespace (used with `--secret`; defaults to the kubeconfig's current context if omitted)                                            |
+| `--kubeconfig`      | Path to the kubeconfig file to use (default `~/.kube/config`)                                                                                   |
+| `--only`            | Comma-separated list of keys to print                                                                                                           |
+| `-o`, `--output`    | Output format: empty (plain), `env`, `json`, `jsonc`, or `yaml` (json/jsonc/yaml produce a patch-ready `stringData` manifest; jsonc is compact) |
+| `-h`, `--help`      | Print usage                                                                                                                                     |
 
 ## Development
 

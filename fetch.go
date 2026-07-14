@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -26,9 +27,59 @@ func fetchSecretJSON(namespace, name, kubeconfig string) ([]byte, error) {
 	cmd := exec.Command("kubectl", "--kubeconfig", kubeconfig, "get", "secret", name, "-n", namespace, "-o", "json")
 	out, err := cmd.Output()
 	if err != nil {
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) && strings.Contains(string(exitErr.Stderr), "NotFound") {
+			return nil, fmt.Errorf("secret %q not found in namespace %q", name, namespace)
+		}
 		return nil, fmt.Errorf("kubectl get secret failed: %w", err)
 	}
 	return out, nil
+}
+
+// currentNamespace asks kubectl for the current kubeconfig context's default
+// namespace, falling back to "default" if the context doesn't set one -
+// mirroring kubectl's own resolution when -n/--namespace is omitted.
+func currentNamespace(ctx context.Context, kubeconfig string) (string, error) {
+	kubeconfig, err := expandHome(kubeconfig)
+	if err != nil {
+		return "", err
+	}
+
+	out, err := exec.CommandContext(ctx, "kubectl", "--kubeconfig", kubeconfig, "config", "view", "--minify", "--output", "jsonpath={..namespace}").Output()
+	if err != nil {
+		return "", err
+	}
+
+	ns := strings.TrimSpace(string(out))
+	if ns == "" {
+		ns = "default"
+	}
+	return ns, nil
+}
+
+// resolveNamespace is the runtime entry point for currentNamespace: no
+// artificial timeout (an actual fetch should behave like a normal kubectl
+// invocation), and failures are surfaced as a real error.
+func resolveNamespace(kubeconfig string) (string, error) {
+	ns, err := currentNamespace(context.Background(), kubeconfig)
+	if err != nil {
+		return "", fmt.Errorf("determining current namespace: %w", err)
+	}
+	return ns, nil
+}
+
+// kubectlCurrentNamespace is the completion entry point for currentNamespace:
+// bounded by completionTimeout, and any failure degrades to "" (no
+// completions) rather than an error, consistent with kubectlResourceNames.
+func kubectlCurrentNamespace(kubeconfig string) string {
+	ctx, cancel := context.WithTimeout(context.Background(), completionTimeout)
+	defer cancel()
+
+	ns, err := currentNamespace(ctx, kubeconfig)
+	if err != nil {
+		return ""
+	}
+	return ns
 }
 
 // kubectlResourceNames lists the names of a resource kind (e.g. "namespace",
