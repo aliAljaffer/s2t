@@ -59,6 +59,32 @@ Examples:
 | `-o`, `--output`    | Output format: empty (plain), `env`, `json`, `jsonc`, or `yaml` (json/jsonc/yaml produce a patch-ready `stringData` manifest; jsonc is compact) |
 | `-h`, `--help`      | Print usage                                                                                                                                     |
 
+### Tricks
+
+**Patch a live secret** from an edited local file — `-o jsonc` produces a compact, single-line `stringData` payload that's directly usable as a `kubectl patch` argument (the API server base64-encodes it server-side):
+
+```bash
+kubectl patch secret db-creds -n prod --type merge -p "$(s2t -f secret.yaml -o jsonc)"
+```
+
+**Export a live secret as a `.env` file** for local development:
+
+```bash
+s2t -s db-creds -n staging -o env > .env
+```
+
+**Diff a secret's decoded values** across two environments or file versions:
+
+```bash
+diff <(s2t -s db-creds -n staging) <(s2t -s db-creds -n prod)
+```
+
+**Grab a single value for scripting**, combining `--only` with `-o env`:
+
+```bash
+PASSWORD=$(s2t -f secret.yaml --only password -o env | cut -d= -f2-)
+```
+
 ### Sealed Secrets
 
 `s2t -f sealed.yaml -t sealed-secret` decrypts a [Sealed Secrets](https://github.com/bitnami-labs/sealed-secrets) manifest client-side (`spec.encryptedData`), given the sealed-secrets controller's private key. Set the `S2T_SEALED_SECRETS_KEY_FILE` env var to a path to that key's PEM file:
