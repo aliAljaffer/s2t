@@ -7,6 +7,9 @@ Reads a raw manifest (YAML or JSON), a custom `key: value` blob, or fetches a
 live secret via `kubectl`, base64-decodes every value, and prints the result
 in a few different shapes.
 
+`kubectl` is only required for the `-secret`/`-s` live-fetch flag. Decoding a
+file (`-f`) or piped stdin doesn't need it installed at all.
+
 ## Install
 
 Requires Go 1.26+.

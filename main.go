@@ -2,54 +2,68 @@ package main
 
 import (
 	"errors"
-	"flag"
 	"fmt"
 	"io"
 	"os"
 	"strings"
+
+	"github.com/spf13/cobra"
 )
 
+var (
+	file       string
+	format     string
+	namespace  string
+	secretName string
+	only       string
+	output     string
+	kubeconfig string
+)
+
+var rootCmd = &cobra.Command{
+	Use:   "s2t",
+	Short: "s2t - Kubernetes Secret to Text decoder",
+	Example: `  s2t -f secret.yaml                            decode a saved manifest file
+  cat secret.json | s2t                         decode piped stdin (format auto-detected)
+  s2t -s db-creds -n prod                       fetch and decode a live secret via kubectl
+  s2t -f secret.yaml --only username,password   only print specific keys
+  s2t -f secret.yaml -o env                     print as KEY=value pairs
+  s2t -s db-creds -n prod -o yaml               re-encode a live secret as a patch-ready manifest`,
+	SilenceUsage:  true,
+	SilenceErrors: true,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return run(cmd, file, format, namespace, secretName, only, output, kubeconfig)
+	},
+}
+
+func init() {
+	flags := rootCmd.Flags()
+	flags.StringVarP(&kubeconfig, "kubeconfig", "", "~/.kube/config", "path to the kubeconfig file to use.")
+	flags.StringVarP(&file, "file", "f", "", "path to a file containing secret data; omit to read from stdin")
+	flags.StringVarP(&format, "format", "t", "any", "input format: yaml, json, or kv (ignored when --secret is used)")
+	flags.StringVarP(&namespace, "namespace", "n", "", "kubernetes namespace (used with --secret)")
+	flags.StringVarP(&secretName, "secret", "s", "", "name of the secret to fetch live via kubectl")
+	flags.StringVarP(&only, "only", "", "", "comma-separated list of keys to print out")
+	flags.StringVarP(&output, "output", "o", "", "output format: empty (plain), env, json, or yaml (json/yaml produce a kubectl-patch-ready stringData manifest)")
+}
+
 func main() {
-	var (
-		file       string
-		format     string
-		namespace  string
-		secretName string
-		only       string
-		output     string
-		help       bool
-		kubeconfig string
-	)
+	if err := rootCmd.Execute(); err != nil {
+		fmt.Fprintln(os.Stderr, "error:", err)
+		os.Exit(1)
+	}
+}
 
-	flag.StringVar(&kubeconfig, "kubeconfig", "~/.kube/config", "path to the kubeconfig file to use.")
-	flag.StringVar(&file, "file", "", "path to a file containing secret data; omit to read from stdin")
-	flag.StringVar(&file, "f", "", "path to a file containing secret data; omit to read from stdin")
-	flag.StringVar(&format, "format", "any", "input format: yaml, json, or kv (ignored when --secret is used)")
-	flag.StringVar(&format, "t", "any", "input format: yaml, json, or kv (ignored when --secret is used)")
-	flag.StringVar(&namespace, "namespace", "", "kubernetes namespace (used with --secret)")
-	flag.StringVar(&namespace, "n", "", "kubernetes namespace (used with --secret)")
-	flag.BoolVar(&help, "help", false, "print out the usage for the s2t tool")
-	flag.BoolVar(&help, "h", false, "print out the usage for the s2t tool")
-	flag.StringVar(&secretName, "secret", "", "name of the secret to fetch live via kubectl")
-	flag.StringVar(&secretName, "s", "", "name of the secret to fetch live via kubectl")
-	flag.StringVar(&only, "only", "", "comma-separated list of keys to print out")
-	flag.StringVar(&output, "output", "", "output format: empty (plain), env, json, or yaml (json/yaml produce a kubectl-patch-ready stringData manifest)")
-	flag.StringVar(&output, "o", "", "output format: empty (plain), env, json, or yaml (json/yaml produce a kubectl-patch-ready stringData manifest)")
-	flag.Parse()
-
+func run(cmd *cobra.Command, file, format, namespace, secretName, only, output, kubeconfig string) error {
 	var (
 		raw []byte
 		err error
 	)
 
 	switch {
-	case help:
-		usage(flag.Usage)
-		os.Exit(1)
 	case secretName != "":
 		if namespace == "" {
-			fmt.Fprintln(os.Stderr, "error: --namespace is required when using --secret")
-			os.Exit(1)
+			return errors.New("--namespace is required when using --secret")
 		}
 		raw, err = fetchSecretJSON(namespace, secretName, kubeconfig)
 		format = "json" // kubectl -o json always produces JSON, so we force the parser choice
@@ -57,32 +71,28 @@ func main() {
 		raw, err = os.ReadFile(file)
 	default:
 		if isTerminal(os.Stdin) {
-			usage(flag.Usage)
+			cmd.Usage()
 			os.Exit(1)
 		}
 		raw, err = io.ReadAll(os.Stdin)
 	}
 
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "error reading input:", err)
-		os.Exit(1)
+		return fmt.Errorf("reading input: %w", err)
 	}
 
 	if format == "" {
-		fmt.Fprintln(os.Stderr, "error: --format is required (yaml, json, or kv)")
-		os.Exit(1)
+		return errors.New("--format is required (yaml, json, or kv)")
 	}
 
 	parser, err := parserFor(format)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "error:", err)
-		os.Exit(1)
+		return err
 	}
 
 	data, err := parser.Parse(raw)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "error parsing input:", err)
-		os.Exit(1)
+		return fmt.Errorf("parsing input: %w", err)
 	}
 
 	if only != "" {
@@ -96,8 +106,7 @@ func main() {
 			if val, ok := data[sanitizedKey]; ok {
 				filteredData[sanitizedKey] = val
 			} else {
-				fmt.Fprintf(os.Stderr, "error: key \"%s\" not found\n", sanitizedKey)
-				os.Exit(1)
+				return fmt.Errorf("key %q not found", sanitizedKey)
 			}
 		}
 		data = filteredData
@@ -105,15 +114,14 @@ func main() {
 
 	formatter, err := formatterFor(output)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "error:", err)
-		os.Exit(1)
+		return err
 	}
 
 	decoded := decode(os.Stderr, data)
 	if err := formatter.Format(os.Stdout, decoded); err != nil {
-		fmt.Fprintln(os.Stderr, "error formatting output:", err)
-		os.Exit(1)
+		return fmt.Errorf("formatting output: %w", err)
 	}
+	return nil
 }
 
 // isTerminal reports whether f is an interactive terminal rather than a pipe
@@ -133,25 +141,4 @@ func sanitizeKey(key string) (string, error) {
 		return "", errors.New("empty key")
 	}
 	return sanitizedKey, nil
-}
-
-func usage(flagUsage func()) (error) {
-	_, err := fmt.Fprintln(os.Stdout, "s2t - Kubernetes Secret to Text decoder")
-	if err != nil {
-		return errors.New("error printing output: " + err.Error())
-	}
-	flagUsage()
-	_, err = fmt.Fprint(os.Stdout, `
-Examples:
-  s2t -f secret.yaml                          decode a saved manifest file
-  cat secret.json | s2t                       decode piped stdin (format auto-detected)
-  s2t -s db-creds -n prod                     fetch and decode a live secret via kubectl
-  s2t -f secret.yaml -only username,password  only print specific keys
-  s2t -f secret.yaml -o env                   print as KEY=value pairs
-  s2t -s db-creds -n prod -o yaml             re-encode a live secret as a patch-ready manifest
-`)
-	if err != nil {
-		return errors.New("error printing output: " + err.Error())
-	}
-	return nil
 }
