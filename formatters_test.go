@@ -50,6 +50,20 @@ func TestPatchJSONFormatter(t *testing.T) {
 	}
 }
 
+func TestPatchJSONCompactFormatter(t *testing.T) {
+	var out bytes.Buffer
+	data := DecodedData{"username": "user", "password": "pass123"}
+
+	if err := (patchJSONCompactFormatter{}).Format(&out, data); err != nil {
+		t.Fatalf("Format() error = %v", err)
+	}
+
+	want := "{\"stringData\":{\"password\":\"pass123\",\"username\":\"user\"}}\n"
+	if out.String() != want {
+		t.Errorf("Format() = %q, want %q", out.String(), want)
+	}
+}
+
 func TestPatchYAMLFormatter(t *testing.T) {
 	var out bytes.Buffer
 	data := DecodedData{"username": "user", "password": "pass123"}

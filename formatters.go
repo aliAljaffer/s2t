@@ -24,10 +24,12 @@ func formatterFor(output string) (Formatter, error) {
 		return envFormatter{}, nil
 	case "json":
 		return patchJSONFormatter{}, nil
+	case "jsonc":
+		return patchJSONCompactFormatter{}, nil
 	case "yaml":
 		return patchYAMLFormatter{}, nil
 	default:
-		return nil, fmt.Errorf("unknown output format %q (want empty, env, json, or yaml)", output)
+		return nil, fmt.Errorf("unknown output format %q (want empty, env, json, jsonc, or yaml)", output)
 	}
 }
 
@@ -69,6 +71,17 @@ type patchJSONFormatter struct{}
 
 func (patchJSONFormatter) Format(out io.Writer, data DecodedData) error {
 	encoded, err := json.MarshalIndent(patchManifest{StringData: data}, "", "  ")
+	if err != nil {
+		return err
+	}
+	_, err = fmt.Fprintln(out, string(encoded))
+	return err
+}
+
+type patchJSONCompactFormatter struct{}
+
+func (patchJSONCompactFormatter) Format(out io.Writer, data DecodedData) error {
+	encoded, err := json.Marshal(patchManifest{StringData: data})
 	if err != nil {
 		return err
 	}

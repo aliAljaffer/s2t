@@ -104,7 +104,6 @@ func (anyParser) Parse(raw []byte) (SecretData, error) {
 		if err != nil {
 			continue
 		}
-		// fmt.Fprintf(os.Stderr, "%s format detected.\n", strings.ToUpper(p))
 		return secretData, nil
 	}
 	return nil, errors.New("no format detected")

@@ -33,8 +33,8 @@ func main() {
 	flag.StringVar(&secretName, "secret", "", "name of the secret to fetch live via kubectl")
 	flag.StringVar(&secretName, "s", "", "name of the secret to fetch live via kubectl")
 	flag.StringVar(&only, "only", "", "comma-separated list of keys to print out")
-	flag.StringVar(&output, "output", "", "output format: empty (plain), env, json, or yaml (json/yaml produce a kubectl-patch-ready stringData manifest)")
-	flag.StringVar(&output, "o", "", "output format: empty (plain), env, json, or yaml (json/yaml produce a kubectl-patch-ready stringData manifest)")
+	flag.StringVar(&output, "output", "", "output format: empty (plain), env, json, jsonc, or yaml (json/jsonc/yaml produce a kubectl-patch-ready stringData manifest; jsonc is compact/unindented)")
+	flag.StringVar(&output, "o", "", "output format: empty (plain), env, json, jsonc, or yaml (json/jsonc/yaml produce a kubectl-patch-ready stringData manifest; jsonc is compact/unindented)")
 	flag.Parse()
 
 	var (
@@ -135,7 +135,7 @@ func sanitizeKey(key string) (string, error) {
 	return sanitizedKey, nil
 }
 
-func usage(flagUsage func()) (error) {
+func usage(flagUsage func()) error {
 	_, err := fmt.Fprintln(os.Stdout, "s2t - Kubernetes Secret to Text decoder")
 	if err != nil {
 		return errors.New("error printing output: " + err.Error())
