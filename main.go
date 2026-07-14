@@ -45,6 +45,38 @@ func init() {
 	flags.StringVarP(&secretName, "secret", "s", "", "name of the secret to fetch live via kubectl")
 	flags.StringVarP(&only, "only", "", "", "comma-separated list of keys to print out")
 	flags.StringVarP(&output, "output", "o", "", "output format: empty (plain), env, json, jsonc, or yaml (json/jsonc/yaml produce a kubectl-patch-ready stringData manifest; jsonc is compact/unindented)")
+
+	rootCmd.RegisterFlagCompletionFunc("namespace", completeNamespaces)
+	rootCmd.RegisterFlagCompletionFunc("secret", completeSecrets)
+}
+
+// completeNamespaces offers real namespace names, fetched live via kubectl,
+// for shell completion of --namespace/-n.
+func completeNamespaces(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	return matchPrefix(kubectlResourceNames("namespace", "", kubeconfig), toComplete), cobra.ShellCompDirectiveNoFileComp
+}
+
+// completeSecrets offers real secret names within the namespace already typed
+// on the command line (--namespace must come first; kubectl has no concept
+// of a secret name without one). No namespace yet means no completions.
+func completeSecrets(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	if namespace == "" {
+		return nil, cobra.ShellCompDirectiveNoFileComp
+	}
+	return matchPrefix(kubectlResourceNames("secret", namespace, kubeconfig), toComplete), cobra.ShellCompDirectiveNoFileComp
+}
+
+func matchPrefix(names []string, prefix string) []string {
+	if prefix == "" {
+		return names
+	}
+	var matched []string
+	for _, n := range names {
+		if strings.HasPrefix(n, prefix) {
+			matched = append(matched, n)
+		}
+	}
+	return matched
 }
 
 func main() {
