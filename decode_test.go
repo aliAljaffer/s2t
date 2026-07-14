@@ -54,3 +54,23 @@ func TestDecode(t *testing.T) {
 		})
 	}
 }
+
+func TestMaskValues(t *testing.T) {
+	data := DecodedData{"short": "a", "long": "a-much-longer-secret-value"}
+
+	got := maskValues(data)
+
+	if len(got) != len(data) {
+		t.Fatalf("maskValues() = %v, want same key count as %v", got, data)
+	}
+	for k := range data {
+		if got[k] != maskPlaceholder {
+			t.Errorf("maskValues()[%q] = %q, want %q", k, got[k], maskPlaceholder)
+		}
+	}
+	// Both values must mask to the exact same placeholder, regardless of the
+	// real value's length - a length-preserving mask would leak length.
+	if got["short"] != got["long"] {
+		t.Errorf("maskValues() placeholders differ by input length: %q vs %q", got["short"], got["long"])
+	}
+}

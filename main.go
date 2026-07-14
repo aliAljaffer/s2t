@@ -14,10 +14,12 @@ var (
 	file       string
 	format     string
 	namespace  string
-	secretName string
+	name       string
 	only       string
 	output     string
 	kubeconfig string
+	kind       string
+	mask       bool
 )
 
 var rootCmd = &cobra.Command{
@@ -25,29 +27,40 @@ var rootCmd = &cobra.Command{
 	Short: "s2t - Kubernetes Secret to Text decoder",
 	Example: `  s2t -f secret.yaml                            decode a saved manifest file
   cat secret.json | s2t                         decode piped stdin (format auto-detected)
-  s2t -s db-creds -n prod                       fetch and decode a live secret via kubectl
+  s2t --name db-creds -n prod                   fetch and decode a live secret via kubectl
   s2t -f secret.yaml --only username,password   only print specific keys
   s2t -f secret.yaml -o env                     print as KEY=value pairs
-  s2t -s db-creds -n prod -o yaml               re-encode a live secret as a patch-ready manifest`,
+  s2t --name db-creds -n prod -o yaml           re-encode a live secret as a patch-ready manifest
+  s2t -f app.yaml -k configmap                  decode a ConfigMap manifest instead of a Secret
+  s2t diff a.yaml b.yaml                        compare two secrets' decoded contents key by key`,
 	SilenceUsage:  true,
 	SilenceErrors: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return run(cmd, file, format, namespace, secretName, only, output, kubeconfig)
+		return run(cmd, file, format, kind, namespace, name, only, output, kubeconfig, mask)
 	},
 }
 
 func init() {
+	persistent := rootCmd.PersistentFlags()
+	persistent.StringVarP(&format, "format", "t", "any", "input format: yaml, json, kv, or sealed-secret (ignored when --name is used; sealed-secret requires "+sealedSecretKeyEnvVar+")")
+	persistent.StringVarP(&kind, "kind", "k", kindSecret, "resource kind: secret or configmap")
+
 	flags := rootCmd.Flags()
 	flags.StringVarP(&kubeconfig, "kubeconfig", "", "~/.kube/config", "path to the kubeconfig file to use.")
 	flags.StringVarP(&file, "file", "f", "", "path to a file containing secret data; omit to read from stdin")
-	flags.StringVarP(&format, "format", "t", "any", "input format: yaml, json, kv, or sealed-secret (ignored when --secret is used; sealed-secret requires "+sealedSecretKeyEnvVar+")")
-	flags.StringVarP(&namespace, "namespace", "n", "", "kubernetes namespace (used with --secret; defaults to the kubeconfig's current context if omitted)")
-	flags.StringVarP(&secretName, "secret", "s", "", "name of the secret to fetch live via kubectl")
+	flags.StringVarP(&namespace, "namespace", "n", "", "kubernetes namespace (used with --name; defaults to the kubeconfig's current context if omitted)")
+	flags.StringVarP(&name, "name", "", "", "name of the resource (secret, or configmap with --kind) to fetch live via kubectl")
 	flags.StringVarP(&only, "only", "", "", "comma-separated list of keys to print out")
-	flags.StringVarP(&output, "output", "o", "", "output format: empty (plain), env, json, jsonc, or yaml (json/jsonc/yaml produce a kubectl-patch-ready stringData manifest; jsonc is compact/unindented)")
+	flags.StringVarP(&output, "output", "o", "", "output format: empty (plain), env, json, jsonc, or yaml (json/jsonc/yaml produce a kubectl-patch-ready manifest; jsonc is compact/unindented)")
+	flags.BoolVarP(&mask, "mask", "", false, "replace every value with a fixed-length placeholder; cannot be combined with -o json/jsonc/yaml")
 
 	rootCmd.RegisterFlagCompletionFunc("namespace", completeNamespaces)
-	rootCmd.RegisterFlagCompletionFunc("secret", completeSecrets)
+	rootCmd.RegisterFlagCompletionFunc("name", completeResourceNames)
+	rootCmd.RegisterFlagCompletionFunc("kind", func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+		return matchPrefix([]string{kindSecret, kindConfigMap}, toComplete), cobra.ShellCompDirectiveNoFileComp
+	})
+
+	rootCmd.AddCommand(diffCmd)
 }
 
 // completeNamespaces offers real namespace names, fetched live via kubectl,
@@ -56,11 +69,11 @@ func completeNamespaces(cmd *cobra.Command, args []string, toComplete string) ([
 	return matchPrefix(kubectlResourceNames("namespace", "", kubeconfig), toComplete), cobra.ShellCompDirectiveNoFileComp
 }
 
-// completeSecrets offers real secret names within the namespace already typed
-// on the command line, falling back to the kubeconfig's current-context
-// namespace (matching kubectl's own resolution) when --namespace isn't typed
-// yet.
-func completeSecrets(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+// completeResourceNames offers real secret or configmap names (per --kind)
+// within the namespace already typed on the command line, falling back to
+// the kubeconfig's current-context namespace (matching kubectl's own
+// resolution) when --namespace isn't typed yet.
+func completeResourceNames(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 	ns := namespace
 	if ns == "" {
 		ns = kubectlCurrentNamespace(kubeconfig)
@@ -68,7 +81,7 @@ func completeSecrets(cmd *cobra.Command, args []string, toComplete string) ([]st
 	if ns == "" {
 		return nil, cobra.ShellCompDirectiveNoFileComp
 	}
-	return matchPrefix(kubectlResourceNames("secret", ns, kubeconfig), toComplete), cobra.ShellCompDirectiveNoFileComp
+	return matchPrefix(kubectlResourceNames(kind, ns, kubeconfig), toComplete), cobra.ShellCompDirectiveNoFileComp
 }
 
 func matchPrefix(names []string, prefix string) []string {
@@ -91,21 +104,25 @@ func main() {
 	}
 }
 
-func run(cmd *cobra.Command, file, format, namespace, secretName, only, output, kubeconfig string) error {
+func run(cmd *cobra.Command, file, format, kind, namespace, name, only, output, kubeconfig string, mask bool) error {
+	if mask && (output == "json" || output == "jsonc" || output == "yaml") {
+		return fmt.Errorf("--mask cannot be combined with -o json/jsonc/yaml: these produce a kubectl-patch-ready payload, and a masked value would silently overwrite the real secret with the literal string %q if applied", maskPlaceholder)
+	}
+
 	var (
 		raw []byte
 		err error
 	)
 
 	switch {
-	case secretName != "":
+	case name != "":
 		if namespace == "" {
 			namespace, err = resolveNamespace(kubeconfig)
 			if err != nil {
 				return fmt.Errorf("resolving current namespace: %w", err)
 			}
 		}
-		raw, err = fetchSecretJSON(namespace, secretName, kubeconfig)
+		raw, err = fetchResourceJSON(kind, namespace, name, kubeconfig)
 		format = "json" // kubectl -o json always produces JSON, so we force the parser choice
 	case file != "":
 		raw, err = os.ReadFile(file)
@@ -125,7 +142,7 @@ func run(cmd *cobra.Command, file, format, namespace, secretName, only, output, 
 		return errors.New("--format is required (yaml, json, or kv)")
 	}
 
-	parser, err := parserFor(format)
+	parser, err := parserFor(format, kind)
 	if err != nil {
 		return err
 	}
@@ -152,12 +169,15 @@ func run(cmd *cobra.Command, file, format, namespace, secretName, only, output, 
 		data = filteredData
 	}
 
-	formatter, err := formatterFor(output)
+	formatter, err := formatterFor(output, kind)
 	if err != nil {
 		return err
 	}
 
 	decoded := decode(os.Stderr, data)
+	if mask {
+		decoded = maskValues(decoded)
+	}
 	if err := formatter.Format(os.Stdout, decoded); err != nil {
 		return fmt.Errorf("formatting output: %w", err)
 	}

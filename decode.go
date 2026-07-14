@@ -39,3 +39,18 @@ func sortedKeys(data DecodedData) []string {
 	sort.Strings(keys)
 	return keys
 }
+
+// maskPlaceholder replaces every value with a fixed-length placeholder,
+// deliberately not preserving the real value's length - a length-preserving
+// mask would still leak how long the real secret is.
+const maskPlaceholder = "********"
+
+// maskValues replaces every value in data with maskPlaceholder, for sharing
+// output (screen-share, chat, CI logs) without leaking the actual secret.
+func maskValues(data DecodedData) DecodedData {
+	masked := make(DecodedData, len(data))
+	for k := range data {
+		masked[k] = maskPlaceholder
+	}
+	return masked
+}

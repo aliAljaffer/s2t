@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -12,53 +13,101 @@ import (
 // SecretData maps a secret key to its still-base64-encoded value.
 type SecretData map[string]string
 
-// Parser turns raw input bytes into SecretData. Every input format implements this.
+// Parser turns raw input bytes into SecretData. Every input format implements
+// this. Parse must always return still-base64-encoded values, even when the
+// underlying source (e.g. a ConfigMap's plain-text data, or a decrypted
+// SealedSecret value) isn't naturally base64 - callers re-encode as needed so
+// that decode()'s always-base64-decode step works uniformly regardless of
+// source.
 type Parser interface {
 	Parse(raw []byte) (SecretData, error)
 }
 
-func parserFor(format string) (Parser, error) {
+// kindSecret and kindConfigMap are the two --kind values. They select how
+// jsonParser/yamlParser interpret a manifest's data/binaryData fields -
+// kvParser and sealedSecretParser ignore kind entirely, since neither format
+// has a defined ConfigMap shape.
+const (
+	kindSecret    = "secret"
+	kindConfigMap = "configmap"
+)
+
+func parserFor(format, kind string) (Parser, error) {
 	switch strings.ToLower(format) {
 	case "yaml", "yml":
-		return yamlParser{}, nil
+		return yamlParser{kind: kind}, nil
 	case "json":
-		return jsonParser{}, nil
+		return jsonParser{kind: kind}, nil
 	case "kv":
+		if kind == kindConfigMap {
+			return nil, fmt.Errorf("--kind configmap is only supported with --format json, yaml, or any")
+		}
 		return kvParser{}, nil
 	case "sealed-secret":
+		if kind == kindConfigMap {
+			return nil, fmt.Errorf("--kind configmap is only supported with --format json, yaml, or any")
+		}
 		return sealedSecretParser{}, nil
 	case "any":
-		return anyParser{}, nil
+		return anyParser{kind: kind}, nil
 	default:
 		return nil, fmt.Errorf("unknown format %q (want yaml, json, kv, or sealed-secret)", format)
 	}
 }
 
-// k8sManifest mirrors the one field we care about in a real Kubernetes Secret
-// object: "data", a map of key to base64-encoded value. Both a raw manifest
-// file and `kubectl -o json/yaml` output share this shape.
+// k8sManifest mirrors the two fields we care about in a real Kubernetes
+// Secret or ConfigMap object. Secrets only ever populate Data (always
+// base64). ConfigMaps populate Data with plain text and, optionally,
+// BinaryData with base64 (for actual binary content).
 type k8sManifest struct {
-	Data map[string]string `json:"data" yaml:"data"`
+	Data       map[string]string `json:"data" yaml:"data"`
+	BinaryData map[string]string `json:"binaryData" yaml:"binaryData"`
 }
 
-type jsonParser struct{}
+// normalizeForKind folds a manifest's data/binaryData into a single
+// still-base64-encoded SecretData, per the Parser contract.
+func normalizeForKind(kind string, m k8sManifest) (SecretData, error) {
+	result := make(SecretData, len(m.Data)+len(m.BinaryData))
 
-func (jsonParser) Parse(raw []byte) (SecretData, error) {
+	if kind == kindConfigMap {
+		for key, value := range m.Data {
+			result[key] = base64.StdEncoding.EncodeToString([]byte(value))
+		}
+		for key, value := range m.BinaryData {
+			if _, exists := result[key]; exists {
+				return nil, fmt.Errorf("key %q present in both data and binaryData", key)
+			}
+			result[key] = value
+		}
+		return result, nil
+	}
+
+	// kindSecret (default): Data is already base64, unchanged from before
+	// --kind existed.
+	for key, value := range m.Data {
+		result[key] = value
+	}
+	return result, nil
+}
+
+type jsonParser struct{ kind string }
+
+func (p jsonParser) Parse(raw []byte) (SecretData, error) {
 	var m k8sManifest
 	if err := json.Unmarshal(raw, &m); err != nil {
 		return nil, err
 	}
-	return SecretData(m.Data), nil
+	return normalizeForKind(p.kind, m)
 }
 
-type yamlParser struct{}
+type yamlParser struct{ kind string }
 
-func (yamlParser) Parse(raw []byte) (SecretData, error) {
+func (p yamlParser) Parse(raw []byte) (SecretData, error) {
 	var m k8sManifest
 	if err := yaml.Unmarshal(raw, &m); err != nil {
 		return nil, err
 	}
-	return SecretData(m.Data), nil
+	return normalizeForKind(p.kind, m)
 }
 
 // kvParser handles the custom "key1: value1,key2: value2" format, one record per line.
@@ -93,12 +142,16 @@ func (kvParser) Parse(raw []byte) (SecretData, error) {
 	return data, nil
 }
 
-type anyParser struct{}
+type anyParser struct{ kind string }
 
-func (anyParser) Parse(raw []byte) (SecretData, error) {
-	parsers := []string{"json", "yaml", "kv"}
-	for _, p := range parsers {
-		parser, err := parserFor(p)
+func (p anyParser) Parse(raw []byte) (SecretData, error) {
+	formats := []string{"json", "yaml", "kv"}
+	if p.kind == kindConfigMap {
+		formats = []string{"json", "yaml"} // kv has no data/binaryData split
+	}
+
+	for _, f := range formats {
+		parser, err := parserFor(f, p.kind)
 		if err != nil {
 			continue
 		}

@@ -16,18 +16,18 @@ type Formatter interface {
 	Format(out io.Writer, data DecodedData) error
 }
 
-func formatterFor(output string) (Formatter, error) {
+func formatterFor(output, kind string) (Formatter, error) {
 	switch output {
 	case "":
 		return plainFormatter{}, nil
 	case "env":
 		return envFormatter{}, nil
 	case "json":
-		return patchJSONFormatter{}, nil
+		return patchJSONFormatter{kind: kind}, nil
 	case "jsonc":
-		return patchJSONCompactFormatter{}, nil
+		return patchJSONCompactFormatter{kind: kind}, nil
 	case "yaml":
-		return patchYAMLFormatter{}, nil
+		return patchYAMLFormatter{kind: kind}, nil
 	default:
 		return nil, fmt.Errorf("unknown output format %q (want empty, env, json, jsonc, or yaml)", output)
 	}
@@ -59,18 +59,24 @@ func (envFormatter) Format(out io.Writer, data DecodedData) error {
 	return nil
 }
 
-// patchManifest wraps decoded values in Kubernetes' stringData field. The
-// API server merges stringData into data itself, base64-encoding server-side,
-// so this needs no re-encoding and is directly usable as the payload for
-// `kubectl patch secret NAME --type merge -p '<output>'`.
-type patchManifest struct {
-	StringData DecodedData `json:"stringData" yaml:"stringData"`
+// patchPayload wraps decoded values in the field a `kubectl patch` expects
+// for the given resource kind: Secrets take stringData (the API server
+// base64-encodes it server-side); ConfigMaps have no stringData equivalent -
+// their data field is already plain text, so decoded values go there
+// directly. Either way this needs no re-encoding and is directly usable as
+// the payload for `kubectl patch <kind> NAME --type merge -p '<output>'`.
+func patchPayload(kind string, data DecodedData) map[string]DecodedData {
+	key := "stringData"
+	if kind == kindConfigMap {
+		key = "data"
+	}
+	return map[string]DecodedData{key: data}
 }
 
-type patchJSONFormatter struct{}
+type patchJSONFormatter struct{ kind string }
 
-func (patchJSONFormatter) Format(out io.Writer, data DecodedData) error {
-	encoded, err := json.MarshalIndent(patchManifest{StringData: data}, "", "  ")
+func (f patchJSONFormatter) Format(out io.Writer, data DecodedData) error {
+	encoded, err := json.MarshalIndent(patchPayload(f.kind, data), "", "  ")
 	if err != nil {
 		return err
 	}
@@ -78,10 +84,10 @@ func (patchJSONFormatter) Format(out io.Writer, data DecodedData) error {
 	return err
 }
 
-type patchJSONCompactFormatter struct{}
+type patchJSONCompactFormatter struct{ kind string }
 
-func (patchJSONCompactFormatter) Format(out io.Writer, data DecodedData) error {
-	encoded, err := json.Marshal(patchManifest{StringData: data})
+func (f patchJSONCompactFormatter) Format(out io.Writer, data DecodedData) error {
+	encoded, err := json.Marshal(patchPayload(f.kind, data))
 	if err != nil {
 		return err
 	}
@@ -89,10 +95,10 @@ func (patchJSONCompactFormatter) Format(out io.Writer, data DecodedData) error {
 	return err
 }
 
-type patchYAMLFormatter struct{}
+type patchYAMLFormatter struct{ kind string }
 
-func (patchYAMLFormatter) Format(out io.Writer, data DecodedData) error {
-	encoded, err := yaml.Marshal(patchManifest{StringData: data})
+func (f patchYAMLFormatter) Format(out io.Writer, data DecodedData) error {
+	encoded, err := yaml.Marshal(patchPayload(f.kind, data))
 	if err != nil {
 		return err
 	}

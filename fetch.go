@@ -15,23 +15,24 @@ import (
 // Tab completion must never hang waiting on a slow or unreachable cluster.
 const completionTimeout = 2 * time.Second
 
-// fetchSecretJSON shells out to kubectl to fetch a live secret as JSON.
-// kubectl's JSON output has the same "data" shape as a raw manifest file,
-// so jsonParser handles both without any extra code.
-func fetchSecretJSON(namespace, name, kubeconfig string) ([]byte, error) {
+// fetchResourceJSON shells out to kubectl to fetch a live Secret or
+// ConfigMap as JSON. kubectl's JSON output has the same data/binaryData
+// shape as a raw manifest file, so jsonParser handles both without any
+// extra code.
+func fetchResourceJSON(kind, namespace, name, kubeconfig string) ([]byte, error) {
 	kubeconfig, err := expandHome(kubeconfig)
 	if err != nil {
 		return nil, fmt.Errorf("resolving --kubeconfig: %w", err)
 	}
 
-	cmd := exec.Command("kubectl", "--kubeconfig", kubeconfig, "get", "secret", name, "-n", namespace, "-o", "json")
+	cmd := exec.Command("kubectl", "--kubeconfig", kubeconfig, "get", kind, name, "-n", namespace, "-o", "json")
 	out, err := cmd.Output()
 	if err != nil {
 		var exitErr *exec.ExitError
 		if errors.As(err, &exitErr) && strings.Contains(string(exitErr.Stderr), "NotFound") {
-			return nil, fmt.Errorf("secret %q not found in namespace %q", name, namespace)
+			return nil, fmt.Errorf("%s %q not found in namespace %q", kind, name, namespace)
 		}
-		return nil, fmt.Errorf("kubectl get secret failed: %w", err)
+		return nil, fmt.Errorf("kubectl get %s failed: %w", kind, err)
 	}
 	return out, nil
 }

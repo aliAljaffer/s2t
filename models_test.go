@@ -36,7 +36,7 @@ func TestJSONParser(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := jsonParser{}.Parse([]byte(tt.input))
+			got, err := jsonParser{kind: kindSecret}.Parse([]byte(tt.input))
 			if (err != nil) != tt.wantErr {
 				t.Fatalf("Parse() error = %v, wantErr %v", err, tt.wantErr)
 			}
@@ -70,13 +70,13 @@ func TestYAMLParser(t *testing.T) {
 		{
 			name:  "missing data key produces empty map, not an error",
 			input: "kind: Secret\n",
-			want:  nil,
+			want:  SecretData{},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := yamlParser{}.Parse([]byte(tt.input))
+			got, err := yamlParser{kind: kindSecret}.Parse([]byte(tt.input))
 			if (err != nil) != tt.wantErr {
 				t.Fatalf("Parse() error = %v, wantErr %v", err, tt.wantErr)
 			}
@@ -143,21 +143,24 @@ func TestKVParser(t *testing.T) {
 func TestParserFor(t *testing.T) {
 	tests := []struct {
 		format  string
+		kind    string
 		want    Parser
 		wantErr bool
 	}{
-		{format: "json", want: jsonParser{}},
-		{format: "JSON", want: jsonParser{}},
-		{format: "yaml", want: yamlParser{}},
-		{format: "yml", want: yamlParser{}},
-		{format: "kv", want: kvParser{}},
-		{format: "toml", wantErr: true},
-		{format: "", wantErr: true},
+		{format: "json", kind: kindSecret, want: jsonParser{kind: kindSecret}},
+		{format: "JSON", kind: kindSecret, want: jsonParser{kind: kindSecret}},
+		{format: "yaml", kind: kindSecret, want: yamlParser{kind: kindSecret}},
+		{format: "yml", kind: kindSecret, want: yamlParser{kind: kindSecret}},
+		{format: "kv", kind: kindSecret, want: kvParser{}},
+		{format: "toml", kind: kindSecret, wantErr: true},
+		{format: "", kind: kindSecret, wantErr: true},
+		{format: "kv", kind: kindConfigMap, wantErr: true},
+		{format: "sealed-secret", kind: kindConfigMap, wantErr: true},
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.format, func(t *testing.T) {
-			got, err := parserFor(tt.format)
+		t.Run(tt.format+"/"+tt.kind, func(t *testing.T) {
+			got, err := parserFor(tt.format, tt.kind)
 			if (err != nil) != tt.wantErr {
 				t.Fatalf("parserFor() error = %v, wantErr %v", err, tt.wantErr)
 			}
@@ -168,5 +171,66 @@ func TestParserFor(t *testing.T) {
 				t.Errorf("parserFor() = %v, want %v", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestNormalizeForKindConfigMap(t *testing.T) {
+	m := k8sManifest{
+		Data:       map[string]string{"config.yaml": "key: value"},
+		BinaryData: map[string]string{"logo.png": "aGVsbG8="},
+	}
+
+	got, err := normalizeForKind(kindConfigMap, m)
+	if err != nil {
+		t.Fatalf("normalizeForKind() error = %v", err)
+	}
+
+	// config.yaml (plain text) must come back re-encoded as base64, since
+	// Parser.Parse always returns still-base64-encoded SecretData.
+	wantConfig := "a2V5OiB2YWx1ZQ=="
+	if got["config.yaml"] != wantConfig {
+		t.Errorf("normalizeForKind()[config.yaml] = %q, want %q", got["config.yaml"], wantConfig)
+	}
+	// logo.png (already base64 in binaryData) passes through unchanged.
+	if got["logo.png"] != "aGVsbG8=" {
+		t.Errorf("normalizeForKind()[logo.png] = %q, want %q", got["logo.png"], "aGVsbG8=")
+	}
+}
+
+func TestNormalizeForKindSecretUnchanged(t *testing.T) {
+	m := k8sManifest{Data: map[string]string{"password": "cGFzczEyMw=="}}
+
+	got, err := normalizeForKind(kindSecret, m)
+	if err != nil {
+		t.Fatalf("normalizeForKind() error = %v", err)
+	}
+	if got["password"] != "cGFzczEyMw==" {
+		t.Errorf("normalizeForKind()[password] = %q, want unchanged %q", got["password"], "cGFzczEyMw==")
+	}
+}
+
+func TestNormalizeForKindCollision(t *testing.T) {
+	m := k8sManifest{
+		Data:       map[string]string{"dup": "plain"},
+		BinaryData: map[string]string{"dup": "cGxhaW4="},
+	}
+
+	if _, err := normalizeForKind(kindConfigMap, m); err == nil {
+		t.Fatal("normalizeForKind() succeeded despite key present in both data and binaryData, want error")
+	}
+}
+
+func TestAnyParserConfigMapSkipsKV(t *testing.T) {
+	// A kv-format input has no json/yaml structure, so with kind=configmap
+	// (which only tries json/yaml) it must fail to detect a format, unlike
+	// kind=secret (which would fall through to kv and succeed).
+	input := []byte("username: dXNlcg==,password: cGFzczEyMw==")
+
+	if _, err := (anyParser{kind: kindSecret}).Parse(input); err != nil {
+		t.Fatalf("anyParser{kind: secret}.Parse() error = %v, want success via kv fallback", err)
+	}
+
+	if _, err := (anyParser{kind: kindConfigMap}).Parse(input); err == nil {
+		t.Fatal("anyParser{kind: configmap}.Parse() succeeded on kv-shaped input, want error (kv should be skipped)")
 	}
 }
