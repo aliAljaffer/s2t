@@ -44,7 +44,21 @@ Examples:
   s2t -s db-creds -n prod -o yaml               re-encode a live secret as a patch-ready manifest
 ```
 
-## Advanced Usage
+### Example outputs:
+
+```bash
+$ s2t -n ar # Auto-completion using default kubeconfig
+argocd     arms-prom
+$ s2t -n argocd -s argocd-initial-admin-secret # given the namespace and secret, print plain
+password: CLG31TzP3S31XX5j
+$ s2t -n argocd -s argocd-initial-admin-secret -oenv # print as .env file
+password=CLG31TzP3S31XX5j
+$ s2t -n argocd -s argocd-initial-admin-secret -oyaml # print as YAML string data
+stringData:
+    password: CLG31TzP3S31XX5j
+$ s2t -n argocd -s argocd-initial-admin-secret -ojsonc # print as compact json (single line)
+{"stringData":{"password":"CLG31TzP3S31XX5j"}}
+```
 
 ### Flags
 
@@ -59,7 +73,7 @@ Examples:
 | `-o`, `--output`    | Output format: empty (plain), `env`, `json`, `jsonc`, or `yaml` (json/jsonc/yaml produce a patch-ready `stringData` manifest; jsonc is compact)        |
 | `-h`, `--help`      | Print usage                                                                                                                                            |
 
-### Tricks
+### Real Use Cases
 
 **Patch a live secret** from an edited local file — `-o jsonc` produces a compact, single-line `stringData` payload that's directly usable as a `kubectl patch` argument (the API server base64-encodes it server-side):
 

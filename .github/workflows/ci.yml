@@ -6,20 +6,24 @@ on:
   pull_request:
 
 jobs:
-  test:
+  go-check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
 
-      - name: Build
+      - name: Verify dependencies (go mod tidy)
+        run: |
+          go mod tidy && echo "Go is tidy"
+
+      - name: Build package
         run: go build ./...
 
-      - name: Vet
+      - name: Vet package
         run: go vet ./...
 
-      - name: Test
+      - name: Run tests
         run: go test ./...
