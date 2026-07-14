@@ -43,6 +43,7 @@ Examples:
   s2t -f secret.yaml -o env                       print as KEY=value pairs
   s2t --name db-creds --namespace prod -o yaml    re-encode a live secret as a patch-ready manifest
   s2t -f app.yaml -k configmap                    decode a ConfigMap manifest instead of a Secret
+  s2t --name cm/app-config --namespace prod       fetch a ConfigMap live; kind is derived from the cm/ prefix
   s2t diff a.yaml b.yaml                          compare two secrets' decoded contents key by key
 ```
 
@@ -69,7 +70,7 @@ $ s2t -s argocd --name argocd-initial-admin-secret -ojsonc # print as compact js
 | `-f`, `--file`      | Path to a file containing secret data                                                                                                           | `stdin`                                                 |
 | `-t`, `--format`    | Input format: `yaml`, `json`, `kv`, or `sealed-secret` (`sealed-secret` must be requested explicitly), if empty, use `any` which auto-detects   | `any`                                                   |
 | `-k`, `--kind`      | Resource kind: `secret` or `configmap`                                                                                                          | `secret`                                                |
-| `-n`, `--name`      | Name of the resource (secret, or configmap with `--kind`) to fetch live via `kubectl`                                                           | -                                                       |
+| `-n`, `--name`      | Name of the resource to fetch live via `kubectl` — a plain name (uses `--kind`), or `kind/name` (e.g. `secret/my-secret`, `configmap/my-cm`, `cm/my-cm`) | -                                                       |
 | `-s`, `--namespace` | Kubernetes namespace (used with `--name`)                                                                                                       | defaults to the kubeconfig's current context if omitted |
 | `--kubeconfig`      | Path to the kubeconfig file to use                                                                                                              | `~/.kube/config`                                        |
 | `--only`            | Comma-separated list of keys to print                                                                                                           | -                                                       |
@@ -131,6 +132,16 @@ s2t -f app-config.yaml -k configmap -o jsonc       # patch payload wraps as {"da
 ```
 
 `-k configmap` only combines with `--format json`, `yaml`, or `any` — `kv` and `sealed-secret` have no defined ConfigMap shape and are rejected with a clear error.
+
+The kind can also be embedded directly in `--name`, kubectl's `TYPE/NAME` style, instead of passing `-k` separately:
+
+```bash
+s2t --name secret/db-creds --namespace prod
+s2t --name configmap/app-config --namespace prod
+s2t --name cm/app-config --namespace prod           # cm is a short alias for configmap
+```
+
+If `--name` carries a `kind/` prefix and `-k` is also passed with a different kind, `s2t` rejects the conflict rather than silently picking one.
 
 ### Masking values
 

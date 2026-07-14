@@ -174,6 +174,39 @@ func TestParserFor(t *testing.T) {
 	}
 }
 
+func TestSplitKindName(t *testing.T) {
+	tests := []struct {
+		raw      string
+		wantKind string
+		wantName string
+		wantOK   bool
+		wantErr  bool
+	}{
+		{raw: "my-secret", wantOK: false, wantName: "my-secret"},
+		{raw: "secret/my-secret", wantOK: true, wantKind: kindSecret, wantName: "my-secret"},
+		{raw: "configmap/my-cm", wantOK: true, wantKind: kindConfigMap, wantName: "my-cm"},
+		{raw: "cm/my-cm", wantOK: true, wantKind: kindConfigMap, wantName: "my-cm"},
+		{raw: "cm/my-cm/extra", wantOK: true, wantKind: kindConfigMap, wantName: "my-cm/extra"},
+		{raw: "pod/my-pod", wantErr: true},
+		{raw: "cm/", wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.raw, func(t *testing.T) {
+			kind, name, ok, err := splitKindName(tt.raw)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("splitKindName(%q) error = %v, wantErr %v", tt.raw, err, tt.wantErr)
+			}
+			if tt.wantErr {
+				return
+			}
+			if ok != tt.wantOK || kind != tt.wantKind || name != tt.wantName {
+				t.Errorf("splitKindName(%q) = (%q, %q, %v), want (%q, %q, %v)", tt.raw, kind, name, ok, tt.wantKind, tt.wantName, tt.wantOK)
+			}
+		})
+	}
+}
+
 func TestNormalizeForKindConfigMap(t *testing.T) {
 	m := k8sManifest{
 		Data:       map[string]string{"config.yaml": "key: value"},

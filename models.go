@@ -32,6 +32,33 @@ const (
 	kindConfigMap = "configmap"
 )
 
+// kindAliases maps every accepted --name kind prefix (e.g. "cm/my-cm") to its
+// canonical kind constant.
+var kindAliases = map[string]string{
+	kindSecret:    kindSecret,
+	kindConfigMap: kindConfigMap,
+	"cm":          kindConfigMap,
+}
+
+// splitKindName parses a --name value that may carry a "kind/name" prefix,
+// e.g. "secret/my-secret", "configmap/my-cm", or "cm/my-cm" (kubectl's
+// TYPE/NAME convention). It returns ok=false when raw has no such prefix, so
+// callers know to keep whatever --kind is already in effect.
+func splitKindName(raw string) (kind, name string, ok bool, err error) {
+	prefix, rest, found := strings.Cut(raw, "/")
+	if !found {
+		return "", raw, false, nil
+	}
+	if rest == "" {
+		return "", "", false, fmt.Errorf("missing name after %q in --name %q", prefix+"/", raw)
+	}
+	kind, known := kindAliases[prefix]
+	if !known {
+		return "", "", false, fmt.Errorf("unknown resource kind %q in --name %q (want secret, configmap, or cm)", prefix, raw)
+	}
+	return kind, rest, true, nil
+}
+
 func parserFor(format, kind string) (Parser, error) {
 	switch strings.ToLower(format) {
 	case "yaml", "yml":

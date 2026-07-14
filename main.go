@@ -32,6 +32,7 @@ var rootCmd = &cobra.Command{
   s2t -f secret.yaml -o env                       print as KEY=value pairs
   s2t --name db-creds --namespace prod -o yaml    re-encode a live secret as a patch-ready manifest
   s2t -f app.yaml -k configmap                    decode a ConfigMap manifest instead of a Secret
+  s2t --name cm/app-config --namespace prod       fetch a ConfigMap live; kind is derived from the cm/ prefix
   s2t diff a.yaml b.yaml                          compare two secrets' decoded contents key by key`,
 	SilenceUsage:  true,
 	SilenceErrors: true,
@@ -49,7 +50,7 @@ func init() {
 	flags.StringVarP(&kubeconfig, "kubeconfig", "", "~/.kube/config", "path to the kubeconfig file to use.")
 	flags.StringVarP(&file, "file", "f", "", "path to a file containing secret data; omit to read from stdin")
 	flags.StringVarP(&namespace, "namespace", "s", "", "kubernetes namespace (used with --name; defaults to the kubeconfig's current context if omitted)")
-	flags.StringVarP(&name, "name", "n", "", "name of the resource (secret, or configmap with --kind) to fetch live via kubectl")
+	flags.StringVarP(&name, "name", "n", "", "name of the resource to fetch live via kubectl; either a plain name (uses --kind) or kind/name, e.g. secret/my-secret, configmap/my-cm, or cm/my-cm")
 	flags.StringVarP(&only, "only", "", "", "comma-separated list of keys to print out")
 	flags.StringVarP(&output, "output", "o", "", "output format: empty (plain), env, json, jsonc, or yaml (json/jsonc/yaml produce a kubectl-patch-ready manifest; jsonc is compact/unindented)")
 	flags.BoolVarP(&mask, "mask", "", false, "replace every value with a fixed-length placeholder; cannot be combined with -o json/jsonc/yaml")
@@ -69,7 +70,8 @@ func completeNamespaces(cmd *cobra.Command, args []string, toComplete string) ([
 	return matchPrefix(kubectlResourceNames("namespace", "", kubeconfig), toComplete), cobra.ShellCompDirectiveNoFileComp
 }
 
-// completeResourceNames offers real secret or configmap names (per --kind)
+// completeResourceNames offers real secret or configmap names (per --kind,
+// or per a "kind/" prefix already typed into --name itself, e.g. "cm/my-")
 // within the namespace already typed on the command line, falling back to
 // the kubeconfig's current-context namespace (matching kubectl's own
 // resolution) when --namespace isn't typed yet.
@@ -81,7 +83,23 @@ func completeResourceNames(cmd *cobra.Command, args []string, toComplete string)
 	if ns == "" {
 		return nil, cobra.ShellCompDirectiveNoFileComp
 	}
-	return matchPrefix(kubectlResourceNames(kind, ns, kubeconfig), toComplete), cobra.ShellCompDirectiveNoFileComp
+
+	k, prefix, rest := kind, "", toComplete
+	if alias, name, found := strings.Cut(toComplete, "/"); found {
+		if resolved, ok := kindAliases[alias]; ok {
+			k, prefix, rest = resolved, alias+"/", name
+		}
+	}
+
+	matched := matchPrefix(kubectlResourceNames(k, ns, kubeconfig), rest)
+	if prefix == "" {
+		return matched, cobra.ShellCompDirectiveNoFileComp
+	}
+	result := make([]string, len(matched))
+	for i, m := range matched {
+		result[i] = prefix + m
+	}
+	return result, cobra.ShellCompDirectiveNoFileComp
 }
 
 func matchPrefix(names []string, prefix string) []string {
@@ -116,6 +134,14 @@ func run(cmd *cobra.Command, file, format, kind, namespace, name, only, output, 
 
 	switch {
 	case name != "":
+		if parsedKind, plainName, ok, splitErr := splitKindName(name); splitErr != nil {
+			return splitErr
+		} else if ok {
+			if cmd.Flags().Changed("kind") && kind != parsedKind {
+				return fmt.Errorf("--kind %s conflicts with resource kind %q in --name %q", kind, parsedKind, name)
+			}
+			kind, name = parsedKind, plainName
+		}
 		if namespace == "" {
 			namespace, err = resolveNamespace(kubeconfig)
 			if err != nil {
