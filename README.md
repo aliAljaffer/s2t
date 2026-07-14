@@ -7,7 +7,7 @@ Reads a raw manifest (YAML or JSON), a custom `key: value` blob, or fetches a
 live secret via `kubectl`, base64-decodes every value, and prints the result
 in a few different shapes.
 
-`kubectl` is only required for the `-secret`/`-s` live-fetch flag. Decoding a
+`kubectl` is only required for the `--secret`/`-s` live-fetch flag. Decoding a
 file (`-f`) or piped stdin doesn't need it installed at all.
 
 ## Install
@@ -31,26 +31,26 @@ s2t -h
 
 ```
 Examples:
-  s2t -f secret.yaml                          decode a saved manifest file
-  cat secret.json | s2t                       decode piped stdin (format auto-detected)
-  s2t -s db-creds -n prod                     fetch and decode a live secret via kubectl
-  s2t -f secret.yaml -only username,password  only print specific keys
-  s2t -f secret.yaml -o env                   print as KEY=value pairs
-  s2t -s db-creds -n prod -o yaml             re-encode a live secret as a patch-ready manifest
+  s2t -f secret.yaml                            decode a saved manifest file
+  cat secret.json | s2t                         decode piped stdin (format auto-detected)
+  s2t -s db-creds -n prod                       fetch and decode a live secret via kubectl
+  s2t -f secret.yaml --only username,password   only print specific keys
+  s2t -f secret.yaml -o env                     print as KEY=value pairs
+  s2t -s db-creds -n prod -o yaml               re-encode a live secret as a patch-ready manifest
 ```
 
 ### Flags
 
 | Flag                  | Description                                                                            |
 | --------------------- | ---------------------------------------------------------------------------------------- |
-| `-f`, `-file`          | Path to a file containing secret data; omit to read from stdin                           |
-| `-t`, `-format`        | Input format: `yaml`, `json`, or `kv` (default `any`, auto-detected)                      |
-| `-s`, `-secret`        | Name of the secret to fetch live via `kubectl`                                           |
-| `-n`, `-namespace`     | Kubernetes namespace (required with `-secret`)                                           |
-| `-kubeconfig`          | Path to the kubeconfig file to use (default `~/.kube/config`)                             |
-| `-only`                | Comma-separated list of keys to print                                                    |
-| `-o`, `-output`        | Output format: empty (plain), `env`, `json`, or `yaml` (json/yaml produce a patch-ready `stringData` manifest) |
-| `-h`, `-help`          | Print usage                                                                               |
+| `-f`, `--file`         | Path to a file containing secret data; omit to read from stdin                           |
+| `-t`, `--format`       | Input format: `yaml`, `json`, or `kv` (default `any`, auto-detected)                      |
+| `-s`, `--secret`       | Name of the secret to fetch live via `kubectl`                                           |
+| `-n`, `--namespace`    | Kubernetes namespace (required with `--secret`)                                          |
+| `--kubeconfig`         | Path to the kubeconfig file to use (default `~/.kube/config`)                             |
+| `--only`               | Comma-separated list of keys to print                                                    |
+| `-o`, `--output`       | Output format: empty (plain), `env`, `json`, `jsonc`, or `yaml` (json/jsonc/yaml produce a patch-ready `stringData` manifest; jsonc is compact) |
+| `-h`, `--help`         | Print usage                                                                               |
 
 ## Development
 
