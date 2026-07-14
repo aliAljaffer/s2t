@@ -25,10 +25,12 @@ func parserFor(format string) (Parser, error) {
 		return jsonParser{}, nil
 	case "kv":
 		return kvParser{}, nil
+	case "sealed-secret":
+		return sealedSecretParser{}, nil
 	case "any":
 		return anyParser{}, nil
 	default:
-		return nil, fmt.Errorf("unknown format %q (want yaml, json, or kv)", format)
+		return nil, fmt.Errorf("unknown format %q (want yaml, json, kv, or sealed-secret)", format)
 	}
 }
 

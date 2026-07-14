@@ -40,7 +40,7 @@ func init() {
 	flags := rootCmd.Flags()
 	flags.StringVarP(&kubeconfig, "kubeconfig", "", "~/.kube/config", "path to the kubeconfig file to use.")
 	flags.StringVarP(&file, "file", "f", "", "path to a file containing secret data; omit to read from stdin")
-	flags.StringVarP(&format, "format", "t", "any", "input format: yaml, json, or kv (ignored when --secret is used)")
+	flags.StringVarP(&format, "format", "t", "any", "input format: yaml, json, kv, or sealed-secret (ignored when --secret is used; sealed-secret requires "+sealedSecretKeyEnvVar+")")
 	flags.StringVarP(&namespace, "namespace", "n", "", "kubernetes namespace (used with --secret; defaults to the kubeconfig's current context if omitted)")
 	flags.StringVarP(&secretName, "secret", "s", "", "name of the secret to fetch live via kubectl")
 	flags.StringVarP(&only, "only", "", "", "comma-separated list of keys to print out")
