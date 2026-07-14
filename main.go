@@ -25,14 +25,14 @@ var (
 var rootCmd = &cobra.Command{
 	Use:   "s2t",
 	Short: "s2t - Kubernetes Secret to Text decoder",
-	Example: `  s2t -f secret.yaml                            decode a saved manifest file
-  cat secret.json | s2t                         decode piped stdin (format auto-detected)
-  s2t --name db-creds -n prod                   fetch and decode a live secret via kubectl
-  s2t -f secret.yaml --only username,password   only print specific keys
-  s2t -f secret.yaml -o env                     print as KEY=value pairs
-  s2t --name db-creds -n prod -o yaml           re-encode a live secret as a patch-ready manifest
-  s2t -f app.yaml -k configmap                  decode a ConfigMap manifest instead of a Secret
-  s2t diff a.yaml b.yaml                        compare two secrets' decoded contents key by key`,
+	Example: `  s2t -f secret.yaml                              decode a saved manifest file
+  cat secret.json | s2t                           decode piped stdin (format auto-detected)
+  s2t --name db-creds --namespace prod            fetch and decode a live secret via kubectl
+  s2t -f secret.yaml --only username,password     only print specific keys
+  s2t -f secret.yaml -o env                       print as KEY=value pairs
+  s2t --name db-creds --namespace prod -o yaml    re-encode a live secret as a patch-ready manifest
+  s2t -f app.yaml -k configmap                    decode a ConfigMap manifest instead of a Secret
+  s2t diff a.yaml b.yaml                          compare two secrets' decoded contents key by key`,
 	SilenceUsage:  true,
 	SilenceErrors: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -48,8 +48,8 @@ func init() {
 	flags := rootCmd.Flags()
 	flags.StringVarP(&kubeconfig, "kubeconfig", "", "~/.kube/config", "path to the kubeconfig file to use.")
 	flags.StringVarP(&file, "file", "f", "", "path to a file containing secret data; omit to read from stdin")
-	flags.StringVarP(&namespace, "namespace", "n", "", "kubernetes namespace (used with --name; defaults to the kubeconfig's current context if omitted)")
-	flags.StringVarP(&name, "name", "", "", "name of the resource (secret, or configmap with --kind) to fetch live via kubectl")
+	flags.StringVarP(&namespace, "namespace", "s", "", "kubernetes namespace (used with --name; defaults to the kubeconfig's current context if omitted)")
+	flags.StringVarP(&name, "name", "n", "", "name of the resource (secret, or configmap with --kind) to fetch live via kubectl")
 	flags.StringVarP(&only, "only", "", "", "comma-separated list of keys to print out")
 	flags.StringVarP(&output, "output", "o", "", "output format: empty (plain), env, json, jsonc, or yaml (json/jsonc/yaml produce a kubectl-patch-ready manifest; jsonc is compact/unindented)")
 	flags.BoolVarP(&mask, "mask", "", false, "replace every value with a fixed-length placeholder; cannot be combined with -o json/jsonc/yaml")
