@@ -44,7 +44,7 @@ func init() {
 	flags.StringVarP(&namespace, "namespace", "n", "", "kubernetes namespace (used with --secret)")
 	flags.StringVarP(&secretName, "secret", "s", "", "name of the secret to fetch live via kubectl")
 	flags.StringVarP(&only, "only", "", "", "comma-separated list of keys to print out")
-	flags.StringVarP(&output, "output", "o", "", "output format: empty (plain), env, json, or yaml (json/yaml produce a kubectl-patch-ready stringData manifest)")
+	flags.StringVarP(&output, "output", "o", "", "output format: empty (plain), env, json, jsonc, or yaml (json/jsonc/yaml produce a kubectl-patch-ready stringData manifest; jsonc is compact/unindented)")
 }
 
 func main() {
