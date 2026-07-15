@@ -23,34 +23,60 @@ var (
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "s2t",
+	Use:   "s2t [name] | [kind] [name]",
 	Short: "s2t - Kubernetes Secret to Text decoder",
 	Example: `  s2t -f secret.yaml                              decode a saved manifest file
   cat secret.json | s2t                           decode piped stdin (format auto-detected)
-  s2t --name db-creds --namespace prod            fetch and decode a live secret via kubectl
+  s2t db-creds -n prod                            fetch and decode a live secret via kubectl
   s2t -f secret.yaml --only username,password     only print specific keys
   s2t -f secret.yaml -o env                       print as KEY=value pairs
-  s2t --name db-creds --namespace prod -o yaml    re-encode a live secret as a patch-ready manifest
+  s2t db-creds -n prod -o yaml                    re-encode a live secret as a patch-ready manifest
   s2t -f app.yaml -k configmap                    decode a ConfigMap manifest instead of a Secret
-  s2t --name cm/app-config --namespace prod       fetch a ConfigMap live; kind is derived from the cm/ prefix
+  s2t cm/app-config -n prod                       fetch a ConfigMap live; kind/name in one argument
+  s2t cm app-config -n prod                       fetch a ConfigMap live; kind and name as separate arguments
   s2t diff a.yaml b.yaml                          compare two secrets' decoded contents key by key`,
+	Args:          cobra.MaximumNArgs(2),
 	SilenceUsage:  true,
 	SilenceErrors: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return run(cmd, file, format, kind, namespace, name, only, output, kubeconfig, mask)
+		resolvedName, resolvedKind := name, kind
+
+		switch len(args) {
+		case 2:
+			k, ok := kindAliases[args[0]]
+			if !ok {
+				return fmt.Errorf("unknown resource kind %q (want secret, configmap, or cm)", args[0])
+			}
+			if cmd.Flags().Changed("kind") && kind != k {
+				return fmt.Errorf("--kind %s conflicts with resource kind %q given as a positional argument", kind, k)
+			}
+			resolvedKind = k
+			if name != "" && name != args[1] {
+				return fmt.Errorf("conflicting name: positional argument %q and --name %q differ", args[1], name)
+			}
+			resolvedName = args[1]
+		case 1:
+			if name != "" && name != args[0] {
+				return fmt.Errorf("conflicting name: positional argument %q and --name %q differ", args[0], name)
+			}
+			resolvedName = args[0]
+		}
+
+		return run(cmd, file, format, resolvedKind, namespace, resolvedName, only, output, kubeconfig, mask)
 	},
+	ValidArgsFunction: completeRootArgs,
 }
 
 func init() {
 	persistent := rootCmd.PersistentFlags()
-	persistent.StringVarP(&format, "format", "t", "any", "input format: yaml, json, kv, or sealed-secret (ignored when --name is used; sealed-secret requires "+sealedSecretKeyEnvVar+")")
+	persistent.StringVarP(&format, "format", "t", "any", "input format: yaml, json, kv, or sealed-secret (ignored when fetching a resource by name; sealed-secret requires "+sealedSecretKeyEnvVar+")")
 	persistent.StringVarP(&kind, "kind", "k", kindSecret, "resource kind: secret or configmap")
 
 	flags := rootCmd.Flags()
 	flags.StringVarP(&kubeconfig, "kubeconfig", "", "~/.kube/config", "path to the kubeconfig file to use.")
 	flags.StringVarP(&file, "file", "f", "", "path to a file containing secret data; omit to read from stdin")
-	flags.StringVarP(&namespace, "namespace", "s", "", "kubernetes namespace (used with --name; defaults to the kubeconfig's current context if omitted)")
-	flags.StringVarP(&name, "name", "n", "", "name of the resource to fetch live via kubectl; either a plain name (uses --kind) or kind/name, e.g. secret/my-secret, configmap/my-cm, or cm/my-cm")
+	flags.StringVarP(&namespace, "namespace", "n", "", "kubernetes namespace (used when fetching a resource by name; defaults to the kubeconfig's current context if omitted)")
+	flags.StringVarP(&name, "name", "", "", "name of the resource to fetch live via kubectl (same as passing it as the first positional argument); either a plain name (uses --kind) or kind/name, e.g. secret/my-secret, configmap/my-cm, or cm/my-cm")
 	flags.StringVarP(&only, "only", "", "", "comma-separated list of keys to print out")
 	flags.StringVarP(&output, "output", "o", "", "output format: empty (plain), env, json, jsonc, or yaml (json/jsonc/yaml produce a kubectl-patch-ready manifest; jsonc is compact/unindented)")
 	flags.BoolVarP(&mask, "mask", "", false, "replace every value with a fixed-length placeholder; cannot be combined with -o json/jsonc/yaml")
@@ -71,7 +97,7 @@ func completeNamespaces(cmd *cobra.Command, args []string, toComplete string) ([
 }
 
 // completeResourceNames offers real secret or configmap names (per --kind,
-// or per a "kind/" prefix already typed into --name itself, e.g. "cm/my-")
+// or per a "kind/" prefix already typed into the name itself, e.g. "cm/my-")
 // within the namespace already typed on the command line, falling back to
 // the kubeconfig's current-context namespace (matching kubectl's own
 // resolution) when --namespace isn't typed yet.
@@ -100,6 +126,30 @@ func completeResourceNames(cmd *cobra.Command, args []string, toComplete string)
 		result[i] = prefix + m
 	}
 	return result, cobra.ShellCompDirectiveNoFileComp
+}
+
+// completeRootArgs completes the root command's positional arguments, which
+// accept either a single "[kind/]name" argument or separate "kind name"
+// arguments (mirroring kubectl's `get TYPE/NAME` and `get TYPE NAME`). The
+// first argument is completed as a resource name via completeResourceNames;
+// the second argument (only reachable once the first was a recognized kind)
+// is completed as a name of that kind.
+func completeRootArgs(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	if len(args) == 1 {
+		k, ok := kindAliases[args[0]]
+		if !ok {
+			return nil, cobra.ShellCompDirectiveNoFileComp
+		}
+		ns := namespace
+		if ns == "" {
+			ns = kubectlCurrentNamespace(kubeconfig)
+		}
+		if ns == "" {
+			return nil, cobra.ShellCompDirectiveNoFileComp
+		}
+		return matchPrefix(kubectlResourceNames(k, ns, kubeconfig), toComplete), cobra.ShellCompDirectiveNoFileComp
+	}
+	return completeResourceNames(cmd, args, toComplete)
 }
 
 func matchPrefix(names []string, prefix string) []string {

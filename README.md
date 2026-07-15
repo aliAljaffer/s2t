@@ -12,7 +12,7 @@ Reads a raw manifest (YAML or JSON), a custom `key: value` blob, or fetches a
 live secret via `kubectl`, base64-decodes every value, and prints the result
 in a few different shapes.
 
-`kubectl` is only required for the `--name` live-fetch flag. Decoding a
+`kubectl` is only required for live-fetching a resource by name. Decoding a
 file (`-f`) or piped stdin doesn't need it installed at all.
 
 ## Install
@@ -38,28 +38,31 @@ s2t -h
 Examples:
   s2t -f secret.yaml                              decode a saved manifest file
   cat secret.json | s2t                           decode piped stdin (format auto-detected)
-  s2t --name db-creds --namespace prod            fetch and decode a live secret via kubectl
+  s2t db-creds -n prod                            fetch and decode a live secret via kubectl
   s2t -f secret.yaml --only username,password     only print specific keys
   s2t -f secret.yaml -o env                       print as KEY=value pairs
-  s2t --name db-creds --namespace prod -o yaml    re-encode a live secret as a patch-ready manifest
+  s2t db-creds -n prod -o yaml                    re-encode a live secret as a patch-ready manifest
   s2t -f app.yaml -k configmap                    decode a ConfigMap manifest instead of a Secret
-  s2t --name cm/app-config --namespace prod       fetch a ConfigMap live; kind is derived from the cm/ prefix
+  s2t cm/app-config -n prod                       fetch a ConfigMap live; kind/name in one argument
+  s2t cm app-config -n prod                       fetch a ConfigMap live; kind and name as separate arguments
   s2t diff a.yaml b.yaml                          compare two secrets' decoded contents key by key
 ```
+
+The resource name is a plain positional argument, just like `kubectl get secret NAME -n NAMESPACE` — no `--name` needed (though `--name` still works, if you prefer being explicit).
 
 ### Example outputs:
 
 ```bash
-$ s2t -s ar # Auto-completion using default kubeconfig (-s is --namespace's shorthand)
+$ s2t -n ar # Auto-completion using default kubeconfig (-n is --namespace's shorthand, matching kubectl)
 argocd     arms-prom
-$ s2t -s argocd --name argocd-initial-admin-secret # given the namespace and secret, print plain
+$ s2t argocd-initial-admin-secret -n argocd # given the namespace and secret, print plain
 password: CLG31TzP3S31XX5j
-$ s2t -s argocd --name argocd-initial-admin-secret -oenv # print as .env file
+$ s2t argocd-initial-admin-secret -n argocd -oenv # print as .env file
 password=CLG31TzP3S31XX5j
-$ s2t -s argocd --name argocd-initial-admin-secret -oyaml # print as YAML string data
+$ s2t argocd-initial-admin-secret -n argocd -oyaml # print as YAML string data
 stringData:
     password: CLG31TzP3S31XX5j
-$ s2t -s argocd --name argocd-initial-admin-secret -ojsonc # print as compact json (single line)
+$ s2t argocd-initial-admin-secret -n argocd -ojsonc # print as compact json (single line)
 {"stringData":{"password":"CLG31TzP3S31XX5j"}}
 ```
 
@@ -67,11 +70,12 @@ $ s2t -s argocd --name argocd-initial-admin-secret -ojsonc # print as compact js
 
 | Flag                | Description                                                                                                                                     | Default                                                 |
 | ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| `[name]` or `[kind] [name]` | Positional: name of the resource to fetch live via `kubectl` — a plain name (uses `--kind`), `kind/name` (e.g. `secret/my-secret`, `cm/my-cm`), or `kind name` as two separate arguments | -                                                       |
 | `-f`, `--file`      | Path to a file containing secret data                                                                                                           | `stdin`                                                 |
 | `-t`, `--format`    | Input format: `yaml`, `json`, `kv`, or `sealed-secret` (`sealed-secret` must be requested explicitly), if empty, use `any` which auto-detects   | `any`                                                   |
 | `-k`, `--kind`      | Resource kind: `secret` or `configmap`                                                                                                          | `secret`                                                |
-| `-n`, `--name`      | Name of the resource to fetch live via `kubectl` — a plain name (uses `--kind`), or `kind/name` (e.g. `secret/my-secret`, `configmap/my-cm`, `cm/my-cm`) | -                                                       |
-| `-s`, `--namespace` | Kubernetes namespace (used with `--name`)                                                                                                       | defaults to the kubeconfig's current context if omitted |
+| `--name`            | Same as the positional `[name]` argument; useful if you'd rather be explicit or the name collides with a subcommand (e.g. `diff`)               | -                                                       |
+| `-n`, `--namespace` | Kubernetes namespace (used when fetching a resource by name)                                                                                    | defaults to the kubeconfig's current context if omitted |
 | `--kubeconfig`      | Path to the kubeconfig file to use                                                                                                              | `~/.kube/config`                                        |
 | `--only`            | Comma-separated list of keys to print                                                                                                           | -                                                       |
 | `-o`, `--output`    | Output format: empty (plain), `env`, `json`, `jsonc`, or `yaml` (json/jsonc/yaml produce a patch-ready manifest; jsonc is compact)              | empty                                                   |
@@ -89,7 +93,7 @@ kubectl patch secret db-creds -n prod --type merge -p "$(s2t -f secret.yaml -o j
 **Export a live secret as a `.env` file** for local development:
 
 ```bash
-s2t --name db-creds --namespace staging -o env > .env
+s2t db-creds -n staging -o env > .env
 ```
 
 **Diff two secret files' decoded values**, key by key, with `s2t diff` (see [Diffing secrets](#diffing-secrets) below):
@@ -101,7 +105,7 @@ s2t diff staging.yaml prod.yaml
 Comparing two *live* secrets still works via the shell trick (`s2t diff` is file-only for now):
 
 ```bash
-diff <(s2t --name db-creds --namespace staging) <(s2t --name db-creds --namespace prod)
+diff <(s2t db-creds -n staging) <(s2t db-creds -n prod)
 ```
 
 **Grab a single value for scripting**, combining `--only` with `-o env`:
@@ -127,21 +131,21 @@ The key is read from a file path, not the env var's value directly, so the key m
 
 ```bash
 s2t -f app-config.yaml -k configmap
-s2t --name app-config --namespace prod -k configmap        # live fetch
+s2t app-config -n prod -k configmap                # live fetch
 s2t -f app-config.yaml -k configmap -o jsonc       # patch payload wraps as {"data": ...}, not stringData
 ```
 
 `-k configmap` only combines with `--format json`, `yaml`, or `any` — `kv` and `sealed-secret` have no defined ConfigMap shape and are rejected with a clear error.
 
-The kind can also be embedded directly in `--name`, kubectl's `TYPE/NAME` style, instead of passing `-k` separately:
+The kind can also be given positionally instead of via `-k`, matching kubectl's `TYPE/NAME` and `TYPE NAME` forms:
 
 ```bash
-s2t --name secret/db-creds --namespace prod
-s2t --name configmap/app-config --namespace prod
-s2t --name cm/app-config --namespace prod           # cm is a short alias for configmap
+s2t secret/db-creds -n prod
+s2t cm/app-config -n prod           # cm is a short alias for configmap
+s2t cm app-config -n prod           # kind and name as two separate arguments
 ```
 
-If `--name` carries a `kind/` prefix and `-k` is also passed with a different kind, `s2t` rejects the conflict rather than silently picking one.
+If a positional kind is given and `-k` is also passed with a different kind, `s2t` rejects the conflict rather than silently picking one.
 
 ### Masking values
 
