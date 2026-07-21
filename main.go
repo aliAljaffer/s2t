@@ -73,7 +73,7 @@ func init() {
 	persistent.StringVarP(&kind, "kind", "k", kindSecret, "resource kind: secret or configmap")
 
 	flags := rootCmd.Flags()
-	flags.StringVarP(&kubeconfig, "kubeconfig", "", "~/.kube/config", "path to the kubeconfig file to use.")
+	flags.StringVarP(&kubeconfig, "kubeconfig", "", "", "path to the kubeconfig file to use; if omitted, kubectl resolves it itself from $KUBECONFIG (colon-separated paths are merged) or falls back to ~/.kube/config")
 	flags.StringVarP(&file, "file", "f", "", "path to a file containing secret data; omit to read from stdin")
 	flags.StringVarP(&namespace, "namespace", "n", "", "kubernetes namespace (used when fetching a resource by name; defaults to the kubeconfig's current context if omitted)")
 	flags.StringVarP(&name, "name", "", "", "name of the resource to fetch live via kubectl (same as passing it as the first positional argument); either a plain name (uses --kind) or kind/name, e.g. secret/my-secret, configmap/my-cm, or cm/my-cm")

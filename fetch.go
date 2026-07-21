@@ -20,12 +20,13 @@ const completionTimeout = 2 * time.Second
 // shape as a raw manifest file, so jsonParser handles both without any
 // extra code.
 func fetchResourceJSON(kind, namespace, name, kubeconfig string) ([]byte, error) {
-	kubeconfig, err := expandHome(kubeconfig)
+	kcArgs, err := kubeconfigArgs(kubeconfig)
 	if err != nil {
 		return nil, fmt.Errorf("resolving --kubeconfig: %w", err)
 	}
 
-	cmd := exec.Command("kubectl", "--kubeconfig", kubeconfig, "get", kind, name, "-n", namespace, "-o", "json")
+	args := append(kcArgs, "get", kind, name, "-n", namespace, "-o", "json")
+	cmd := exec.Command("kubectl", args...)
 	out, err := cmd.Output()
 	if err != nil {
 		var exitErr *exec.ExitError
@@ -41,12 +42,13 @@ func fetchResourceJSON(kind, namespace, name, kubeconfig string) ([]byte, error)
 // namespace, falling back to "default" if the context doesn't set one -
 // mirroring kubectl's own resolution when -n/--namespace is omitted.
 func currentNamespace(ctx context.Context, kubeconfig string) (string, error) {
-	kubeconfig, err := expandHome(kubeconfig)
+	kcArgs, err := kubeconfigArgs(kubeconfig)
 	if err != nil {
 		return "", err
 	}
 
-	out, err := exec.CommandContext(ctx, "kubectl", "--kubeconfig", kubeconfig, "config", "view", "--minify", "--output", "jsonpath={..namespace}").Output()
+	args := append(kcArgs, "config", "view", "--minify", "--output", "jsonpath={..namespace}")
+	out, err := exec.CommandContext(ctx, "kubectl", args...).Output()
 	if err != nil {
 		return "", err
 	}
@@ -89,12 +91,12 @@ func kubectlCurrentNamespace(kubeconfig string) string {
 // an error, since tab completion should degrade silently, never crash or hang
 // the user's shell.
 func kubectlResourceNames(kind, namespace, kubeconfig string) []string {
-	kubeconfig, err := expandHome(kubeconfig)
+	kcArgs, err := kubeconfigArgs(kubeconfig)
 	if err != nil {
 		return nil
 	}
 
-	args := []string{"--kubeconfig", kubeconfig, "get", kind, "-o", "name"}
+	args := append(kcArgs, "get", kind, "-o", "name")
 	if namespace != "" {
 		args = append(args, "-n", namespace)
 	}
@@ -115,6 +117,24 @@ func kubectlResourceNames(kind, namespace, kubeconfig string) []string {
 		names = append(names, line[strings.LastIndex(line, "/")+1:])
 	}
 	return names
+}
+
+// kubeconfigArgs builds the "--kubeconfig <path>" argument pair for an
+// explicit override, or returns nil if there isn't one. Deliberately omitting
+// --kubeconfig (rather than forwarding $KUBECONFIG's raw value into it) lets
+// the kubectl subprocess inherit KUBECONFIG from the environment and resolve
+// it itself - which matters because --kubeconfig only ever accepts a single
+// path, while $KUBECONFIG may be a list of colon-separated paths that kubectl
+// merges; passing that list through --kubeconfig would just fail.
+func kubeconfigArgs(kubeconfig string) ([]string, error) {
+	if kubeconfig == "" {
+		return nil, nil
+	}
+	expanded, err := expandHome(kubeconfig)
+	if err != nil {
+		return nil, err
+	}
+	return []string{"--kubeconfig", expanded}, nil
 }
 
 // expandHome resolves a leading "~" to the current user's home directory.
