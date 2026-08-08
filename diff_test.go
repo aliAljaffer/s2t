@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/base64"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -71,19 +72,19 @@ func TestRunDiff(t *testing.T) {
 
 	errCh := make(chan error, 1)
 	go func() {
-		errCh <- runDiff(pathA, pathB, "yaml", kindSecret, true)
+		err := runDiff(pathA, pathB, "yaml", kindSecret, true)
 		w.Close()
+		errCh <- err
 	}()
 
-	buf := make([]byte, 4096)
-	n, _ := r.Read(buf)
+	outBytes, _ := io.ReadAll(r)
 	os.Stdout = origStdout
 
 	if err := <-errCh; err != nil {
 		t.Fatalf("runDiff() error = %v", err)
 	}
 
-	out := string(buf[:n])
+	out := string(outBytes)
 	for _, want := range []string{"- removed: gone", "+ added: new", "~ changed: old-value -> new-value"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("runDiff() output missing %q, got:\n%s", want, out)
