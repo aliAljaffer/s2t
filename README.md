@@ -46,6 +46,7 @@ Examples:
   s2t cm/app-config -n prod                       fetch a ConfigMap live; kind/name in one argument
   s2t cm app-config -n prod                       fetch a ConfigMap live; kind and name as separate arguments
   s2t diff a.yaml b.yaml                          compare two secrets' decoded contents key by key
+  s2t diff db-creds db-creds -n stg -B prod       compare a live secret across two namespaces
 ```
 
 The resource name is a plain positional argument, just like `kubectl get secret NAME -n NAMESPACE` — no `--name` needed (though `--name` still works, if you prefer being explicit).
@@ -102,10 +103,10 @@ s2t db-creds -n staging -o env > .env
 s2t diff staging.yaml prod.yaml
 ```
 
-Comparing two *live* secrets still works via the shell trick (`s2t diff` is file-only for now):
+**Diff a live secret across two namespaces** directly, no shell trick needed:
 
 ```bash
-diff <(s2t db-creds -n staging) <(s2t db-creds -n prod)
+s2t diff db-creds db-creds -n staging -B prod
 ```
 
 **Grab a single value for scripting**, combining `--only` with `-o env`:
@@ -183,7 +184,27 @@ s2t diff --show-values staging.yaml prod.yaml
 ~ password: staging-pass -> prod-pass
 ```
 
-`s2t diff` shares `--format`/`-t` and `--kind`/`-k` with the root command (both files are assumed to be the same format/kind), and is file-only for now — see the shell-trick example above for comparing two live secrets.
+`s2t diff` shares `--format`/`-t` and `--kind`/`-k` with the root command (both sources are assumed to be the same format/kind).
+
+### Diffing live secrets
+
+Either (or both) `s2t diff` argument can be a live resource name instead of a file — `s2t` checks whether the argument names a real file on disk first, and falls back to a live `kubectl` fetch otherwise, so a plain filename keeps working exactly as before:
+
+```bash
+s2t diff db-creds db-creds -n staging -B prod          # same secret, two namespaces
+s2t diff cm/app-config cm/app-config -n stg -B prod    # same, for a ConfigMap
+s2t diff old-secret-name new-secret-name -n prod        # two different names, one namespace
+s2t diff staging.yaml db-creds -n prod                  # a file against a live secret
+```
+
+| Flag                 | Description                                                                                        | Default                                  |
+| -------------------- | --------------------------------------------------------------------------------------------------- | ----------------------------------------- |
+| `-n`, `--namespace`  | Namespace for either argument that's a live resource, unless overridden per-side by `-A`/`-B`       | kubeconfig's current context              |
+| `-A`, `--namespace-a`| Namespace for the first argument, if it's a live resource; overrides `--namespace`                 | -                                          |
+| `-B`, `--namespace-b`| Namespace for the second argument, if it's a live resource; overrides `--namespace`                 | -                                          |
+| `--kubeconfig`       | Path to the kubeconfig file to use for live resources                                               | same resolution as the root command       |
+
+A live argument accepts `kind/name` (e.g. `cm/app-config`) to override `--kind` for that side only, matching the root command's own positional syntax.
 
 ## Development
 

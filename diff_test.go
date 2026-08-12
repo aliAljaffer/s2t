@@ -72,7 +72,7 @@ func TestRunDiff(t *testing.T) {
 
 	errCh := make(chan error, 1)
 	go func() {
-		err := runDiff(pathA, pathB, "yaml", kindSecret, true)
+		err := runDiff(pathA, pathB, "yaml", kindSecret, true, "", "", "", "")
 		w.Close()
 		errCh <- err
 	}()
@@ -92,5 +92,37 @@ func TestRunDiff(t *testing.T) {
 	}
 	if strings.Contains(out, "unchanged") {
 		t.Errorf("runDiff() output should omit unchanged keys, got:\n%s", out)
+	}
+}
+
+func TestIsFile(t *testing.T) {
+	dir := t.TempDir()
+	filePath := writeManifestFile(t, dir, "a.yaml", map[string]string{"k": b64("v")})
+
+	if !isFile(filePath) {
+		t.Errorf("isFile(%q) = false, want true", filePath)
+	}
+	if isFile(dir) {
+		t.Errorf("isFile(%q) = true for a directory, want false", dir)
+	}
+	if isFile(filepath.Join(dir, "does-not-exist")) {
+		t.Errorf("isFile() = true for a nonexistent path, want false")
+	}
+	if isFile("db-creds") {
+		t.Errorf("isFile(%q) = true for a bare resource name, want false", "db-creds")
+	}
+}
+
+// TestDecodeSourceDispatchesToLiveFetch pins that a source which isn't a
+// real file is treated as a live resource name, not a file-read error - the
+// error should come from the (mocked-out-by-absence) kubectl call, not from
+// os.ReadFile.
+func TestDecodeSourceDispatchesToLiveFetch(t *testing.T) {
+	_, err := decodeSource("does-not-exist-on-disk", "any", kindSecret, "default", "")
+	if err == nil {
+		t.Fatal("decodeSource() error = nil, want an error (no live cluster in test env)")
+	}
+	if strings.Contains(err.Error(), "no such file") {
+		t.Errorf("decodeSource() = %v, want a live-fetch error, not a file-read error", err)
 	}
 }
