@@ -11,6 +11,7 @@ import (
 )
 
 var (
+	version    = "dev"
 	file       string
 	format     string
 	namespace  string
@@ -68,6 +69,8 @@ var rootCmd = &cobra.Command{
 }
 
 func init() {
+	rootCmd.Version = version
+
 	persistent := rootCmd.PersistentFlags()
 	persistent.StringVarP(&format, "format", "t", "any", "input format: yaml, json, kv, or sealed-secret (ignored when fetching a resource by name; sealed-secret requires "+sealedSecretKeyEnvVar+")")
 	persistent.StringVarP(&kind, "kind", "k", kindSecret, "resource kind: secret or configmap")

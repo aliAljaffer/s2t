@@ -7,6 +7,8 @@
 
 [![CI](https://github.com/aliAljaffer/s2t/actions/workflows/ci.yml/badge.svg?branch=main&event=push)](https://github.com/aliAljaffer/s2t/actions/workflows/ci.yml)
 
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/B7I726HWQJ)
+
 A small CLI that decodes Kubernetes Secrets into readable key/value pairs.
 Reads a raw manifest (YAML or JSON), a custom `key: value` blob, or fetches a
 live secret via `kubectl`, base64-decodes every value, and prints the result
@@ -17,16 +19,33 @@ file (`-f`) or piped stdin doesn't need it installed at all.
 
 ## Install
 
-Requires Go 1.26+.
+**Homebrew, Scoop, etc. coming later.** For now, three options:
+
+**1. `go install`** (needs Go 1.26+):
 
 ```bash
-git clone https://github.com/aljaffer/s2t.git
+go install github.com/alialjaffer/s2t@latest
+```
+
+**2. Prebuilt binary** from [Releases](https://github.com/alialjaffer/s2t/releases), for Windows, macOS, and Linux (amd64 and arm64). Verify with `checksums.txt` if you like:
+
+```bash
+# macOS (Apple Silicon) example
+curl -fLO https://github.com/alialjaffer/s2t/releases/latest/download/s2t-darwin-arm64
+chmod +x s2t-darwin-arm64 && mv s2t-darwin-arm64 ~/.local/bin/s2t
+```
+
+**3. From source:**
+
+```bash
+git clone https://github.com/alialjaffer/s2t.git
 cd s2t
 make install
 ```
 
-`make install` builds the binary and copies it to `~/.local/bin/s2t`. Make
-sure that directory is on your `PATH`.
+`make install` runs `go vet` and the tests, builds the binary, and copies it to `~/.local/bin/s2t`. Make sure that directory is on your `PATH`.
+
+Releases are cut automatically: pushing a `v*` tag (e.g. `v0.1.0`) triggers [.github/workflows/release.yml](.github/workflows/release.yml), which builds and attaches the binaries to a GitHub Release.
 
 ## Usage
 

@@ -1,4 +1,4 @@
-module s2t
+module github.com/alialjaffer/s2t
 
 go 1.26.4
 
