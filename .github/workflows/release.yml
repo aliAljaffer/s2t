@@ -49,6 +49,10 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
       - uses: actions/download-artifact@v8
         with:
           pattern: dist-*
@@ -59,10 +63,30 @@ jobs:
         working-directory: dist
         run: sha256sum s2t-* > checksums.txt
 
+      # generate_release_notes is useless here: it synthesizes only from pull
+      # requests, and this repo pushes straight to main, so it emits nothing
+      # but a diff link. Derive the notes from the commit range instead.
+      - name: Build changelog
+        run: |
+          PREV=$(git describe --tags --abbrev=0 --match 'v*' HEAD^ 2>/dev/null || true)
+          {
+            echo "## What's Changed"
+            echo
+            git log --no-merges --pretty='format:- %s (%h)' ${PREV:+$PREV..}HEAD
+            echo
+            echo
+            if [ -n "$PREV" ]; then
+              echo "**Full Changelog**: https://github.com/${GITHUB_REPOSITORY}/compare/${PREV}...${GITHUB_REF_NAME}"
+            else
+              echo "**Full Changelog**: https://github.com/${GITHUB_REPOSITORY}/commits/${GITHUB_REF_NAME}"
+            fi
+          } > release-notes.md
+          cat release-notes.md
+
       - uses: softprops/action-gh-release@v3
         with:
+          body_path: release-notes.md
           files: dist/*
-          generate_release_notes: true
 
   tap:
     runs-on: ubuntu-latest
