@@ -91,9 +91,9 @@ func TestKubeconfigArgs(t *testing.T) {
 }
 
 // TestFetchResourceJSONArgsOmitKubeconfigWhenUnset guards against a
-// regression where an empty --kubeconfig accidentally re-appears as a
-// literal "--kubeconfig ''" argument, which would override a KUBECONFIG the
-// subprocess would otherwise inherit from the environment.
+// regression where an empty --kubeconfig re-appears as a literal argument
+// with an empty value, which would override a KUBECONFIG the subprocess
+// would otherwise inherit from the environment.
 func TestFetchResourceJSONArgsOmitKubeconfigWhenUnset(t *testing.T) {
 	kcArgs, err := kubeconfigArgs("")
 	if err != nil {
