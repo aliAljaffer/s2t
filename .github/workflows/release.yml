@@ -63,3 +63,47 @@ jobs:
         with:
           files: dist/*
           generate_release_notes: true
+
+  tap:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Resolve version and checksum
+        id: meta
+        run: |
+          TARBALL="https://github.com/${GITHUB_REPOSITORY}/archive/refs/tags/${GITHUB_REF_NAME}.tar.gz"
+          SHA=$(curl -fsSL "$TARBALL" | sha256sum | cut -d' ' -f1)
+          echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+          echo "sha256=${SHA}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v7
+        with:
+          repository: ${{ github.repository_owner }}/homebrew-tap
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: tap
+
+      - name: Update formula
+        env:
+          VERSION: ${{ steps.meta.outputs.version }}
+          SHA256: ${{ steps.meta.outputs.sha256 }}
+        run: |
+          sed -e "s|^  url .*|  url \"https://github.com/${GITHUB_REPOSITORY}/archive/refs/tags/${GITHUB_REF_NAME}.tar.gz\"|" \
+              -e "s|^  sha256 .*|  sha256 \"${SHA256}\"|" \
+              Formula/s2t.rb > tap/Formula/s2t.rb
+          grep -q "refs/tags/${GITHUB_REF_NAME}.tar.gz" tap/Formula/s2t.rb
+
+      - name: Commit and push
+        working-directory: tap
+        env:
+          VERSION: ${{ steps.meta.outputs.version }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Formula/s2t.rb
+          if git diff --quiet --cached; then
+            echo "Formula already at $VERSION"
+            exit 0
+          fi
+          git commit -m "s2t $VERSION"
+          git push

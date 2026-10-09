@@ -19,15 +19,26 @@ file (`-f`) or piped stdin doesn't need it installed at all.
 
 ## Install
 
-**Homebrew, Scoop, etc. coming later.** For now, three options:
+Four options:
 
-**1. `go install`** (needs Go 1.26+):
+**1. Homebrew** (macOS and Linux):
+
+```bash
+brew install alialjaffer/tap/s2t
+```
+
+The formula is [`Formula/s2t.rb`](Formula/s2t.rb) in this repo, and the
+[`alialjaffer/homebrew-tap`](https://github.com/alialjaffer/homebrew-tap) tap
+tracks it. It builds from source, so it needs a Go toolchain of at least the
+version in `go.mod` (a dependency, `sealed-secrets`, sets that floor).
+
+**2. `go install`** (needs Go 1.26+):
 
 ```bash
 go install github.com/alialjaffer/s2t@latest
 ```
 
-**2. Prebuilt binary** from [Releases](https://github.com/alialjaffer/s2t/releases), for Windows, macOS, and Linux (amd64 and arm64). Verify with `checksums.txt` if you like:
+**3. Prebuilt binary** from [Releases](https://github.com/alialjaffer/s2t/releases), for Windows, macOS, and Linux (amd64 and arm64). Verify with `checksums.txt` if you like:
 
 ```bash
 # macOS (Apple Silicon) example
@@ -35,7 +46,7 @@ curl -fLO https://github.com/alialjaffer/s2t/releases/latest/download/s2t-darwin
 chmod +x s2t-darwin-arm64 && mv s2t-darwin-arm64 ~/.local/bin/s2t
 ```
 
-**3. From source:**
+**4. From source:**
 
 ```bash
 git clone https://github.com/alialjaffer/s2t.git
@@ -45,7 +56,7 @@ make install
 
 `make install` runs `go vet` and the tests, builds the binary, and copies it to `~/.local/bin/s2t`. Make sure that directory is on your `PATH`.
 
-Releases are cut automatically: pushing a `v*` tag (e.g. `v0.1.0`) triggers [.github/workflows/release.yml](.github/workflows/release.yml), which builds and attaches the binaries to a GitHub Release.
+Releases are cut automatically: pushing a `v*` tag (e.g. `v0.1.0`) triggers [.github/workflows/release.yml](.github/workflows/release.yml), which builds and attaches the binaries to a GitHub Release, then rewrites `Formula/s2t.rb`'s `url` and `sha256` for that tag and pushes it to the tap. The tap push needs a `HOMEBREW_TAP_TOKEN` secret in this repo holding a token with `contents: write` on `alialjaffer/homebrew-tap`.
 
 ## Usage
 
