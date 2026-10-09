@@ -5,7 +5,7 @@ Thanks for considering a contribution to `s2t`.
 ## Getting started
 
 ```sh
-git clone https://github.com/aljaffer/s2t.git
+git clone https://github.com/alialjaffer/s2t.git
 cd s2t
 make test
 ```
@@ -23,6 +23,11 @@ make test
    go test ./...
    ```
 5. Open a PR describing what changed and why.
+
+`main` is protected: direct pushes are rejected, and every change lands through
+a PR. The `go-check` CI job is a required status check, so a PR cannot merge
+until it passes. No approving review is required (the maintainer merges their
+own PRs), but review threads must be resolved first.
 
 ## Code style
 

@@ -10,14 +10,9 @@ on:
       - "images/**"
       - ".github/FUNDING.yml"
       - ".github/workflows/release.yml"
+  # All PRs run CI. A paths-ignore here would leave go-check unreported, and it
+  # is a required status check on main, which would deadlock docs-only PRs.
   pull_request:
-    paths-ignore:
-      - "**.md"
-      - "LICENSE"
-      - ".gitignore"
-      - "images/**"
-      - ".github/FUNDING.yml"
-      - ".github/workflows/release.yml"
 
 jobs:
   go-check:

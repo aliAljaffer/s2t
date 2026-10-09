@@ -341,7 +341,8 @@ make vet     # go vet ./...
 make clean   # remove bin/
 ```
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for details on contributing.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for details on contributing. Release
+notes are in [CHANGELOG.md](CHANGELOG.md).
 
 ## License
 
