@@ -77,6 +77,8 @@ Examples:
   s2t cm app-config -n prod                       fetch a ConfigMap live; kind and name as separate arguments
   s2t diff a.yaml b.yaml                          compare two secrets' decoded contents key by key
   s2t diff db-creds db-creds -n stg -B prod       compare a live secret across two namespaces
+  s2t set db-creds -n prod password=s3cret        upsert plaintext keys into a live secret
+  s2t edit db-creds -n prod                       edit a live secret's values in $EDITOR
 ```
 
 The resource name is a plain positional argument, just like `kubectl get secret NAME -n NAMESPACE` — no `--name` needed (though `--name` still works, if you prefer being explicit).
@@ -187,6 +189,100 @@ s2t -f secret.yaml --mask
 ```
 
 `--mask` cannot be combined with `-o json`, `jsonc`, or `yaml`: those produce a `kubectl patch`-ready payload, and a masked value would silently overwrite the real secret with the literal string `"********"` if applied. `s2t` refuses this combination outright rather than risk it.
+
+### Upserting values with `s2t set`
+
+`s2t set <name> [key=value ...]` updates or adds keys on a live Secret or
+ConfigMap without ever base64-encoding a value by hand. It reads plaintext from
+positional `key=value` arguments and/or `-f`/stdin (JSON, YAML, or env,
+auto-detected), flattens nested JSON/YAML with `__`, and builds a merge patch.
+Secrets use `stringData`, which the API server encodes for you:
+
+```bash
+s2t set db-creds -n prod password=s3cret
+s2t set db-creds -n prod username=admin password=s3cret
+```
+
+That prints a pipeable payload by default, so nothing touches the cluster until
+you decide:
+
+```bash
+s2t set db-creds -n prod password=s3cret -o jsonc
+{"stringData":{"password":"s3cret"}}
+```
+
+Add `--apply` to patch directly, with no shell pipe needed. Combine `--dry-run`
+to validate server-side first:
+
+```bash
+s2t set db-creds -n prod password=s3cret --apply
+s2t set db-creds -n prod password=s3cret --apply --dry-run
+```
+
+**dotnet appsettings.** Nested JSON (or YAML) is flattened with `__`, so an
+appsettings file maps straight onto secret keys, and a couple of ad-hoc
+overrides can be layered on top of it:
+
+```bash
+cat appsettings.json | s2t set db-creds -n prod --apply
+cat appsettings.json | s2t set db-creds -n prod Feature__Enabled=true --apply
+```
+
+```json
+{"ConnectionStrings": {"Default": "Server=db"}, "Feature": {"Enabled": false}}
+```
+
+becomes the patch `{"stringData":{"ConnectionStrings__Default":"Server=db","Feature__Enabled":"true"}}`
+(the second command overrides the file's `Feature.Enabled=false`).
+Arrays are indexed (`Servers__0`, `Servers__1`), and a command-line pair always
+wins over the same key from a file/stdin (with a warning). Keys must be valid
+Kubernetes keys (alphanumerics, `-`, `_`, `.`); `-k configmap` patches a
+ConfigMap's plaintext `data` instead.
+
+A positional pair is always `key=value`, and multiple pairs can be comma-joined
+in one argument (`key1=val1,key2=val2`) or passed separately. Because commas
+separate pairs, use JSON/YAML input for a value that itself contains a comma.
+
+| Flag              | Description                                                                            | Default |
+| ----------------- | -------------------------------------------------------------------------------------- | ------- |
+| `-n`, `--namespace` | Namespace of the target resource                                                      | kubeconfig's current context |
+| `-f`, `--file`    | Plaintext key/value file (JSON, YAML, or env); stdin if omitted                         | stdin   |
+| `-t`, `--format`  | Input format: `any`, `env`, `json`, or `yaml` (`kv` is treated as `env`)               | `any`   |
+| `-k`, `--kind`    | `secret` or `configmap`                                                                 | `secret` |
+| `-o`, `--output`  | Patch payload format: `jsonc`, `json`, or `yaml`                                        | `jsonc` |
+| `--apply`         | Patch the cluster with `kubectl patch` instead of printing                             | `false` |
+| `--dry-run`       | With `--apply`, validate with `kubectl --dry-run=server` without writing                | `false` |
+| `--separator`     | Separator used to flatten nested JSON/YAML keys                                         | `__`    |
+| `--kubeconfig`    | Path to the kubeconfig file to use                                                      | same resolution as the root command |
+
+### Editing a live secret with `s2t edit`
+
+`s2t edit <name> -n <ns>` fetches a live resource, shows **only its data keys**
+(no metadata, labels, or annotations) in `$EDITOR`, and prints a merge patch for
+whatever you changed: added/updated keys go through `stringData`, deleted keys
+are removed with a `null` in `data`. It then asks whether to apply:
+
+```bash
+s2t edit db-creds -n prod
+s2t edit cm/app-config -n prod -o yaml   # use yaml/json for multi-line values
+```
+
+```text
+{
+  "stringData": {
+    "password": "NEWPASS"
+  },
+  "data": {
+    "deprecated-key": null
+  }
+}
+Apply this patch? [y/N]:
+```
+
+Empty input (or a non-interactive stdin) defaults to No; nothing is written
+until you answer `y`. Values are shown as flat keys, edited in `env`
+(`KEY=value`), `yaml`, or `json` format; `env` refuses values containing
+newlines, so use `yaml`/`json` for those.
 
 ### Diffing secrets
 

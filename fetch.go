@@ -38,6 +38,30 @@ func fetchResourceJSON(kind, namespace, name, kubeconfig string) ([]byte, error)
 	return out, nil
 }
 
+// patchResource applies a merge patch to a live Secret or ConfigMap via
+// kubectl. The payload is passed as a single -p argument (never shell
+// interpreted), so values containing quotes or spaces are safe. dryRun adds
+// kubectl's server-side dry run, which validates the patch (RBAC, schema,
+// admission) without persisting it.
+func patchResource(kind, namespace, name, kubeconfig, payload string, dryRun bool) ([]byte, error) {
+	kcArgs, err := kubeconfigArgs(kubeconfig)
+	if err != nil {
+		return nil, fmt.Errorf("resolving --kubeconfig: %w", err)
+	}
+
+	args := append(kcArgs, "patch", kind, name, "-n", namespace, "--type", "merge", "-p", payload)
+	if dryRun {
+		args = append(args, "--dry-run=server")
+	}
+
+	cmd := exec.Command("kubectl", args...)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return out, fmt.Errorf("kubectl patch %s %q failed: %w", kind, name, err)
+	}
+	return out, nil
+}
+
 // currentNamespace asks kubectl for the current kubeconfig context's default
 // namespace, falling back to "default" if the context doesn't set one -
 // mirroring kubectl's own resolution when -n/--namespace is omitted.

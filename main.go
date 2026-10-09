@@ -35,7 +35,9 @@ var rootCmd = &cobra.Command{
   s2t -f app.yaml -k configmap                    decode a ConfigMap manifest instead of a Secret
   s2t cm/app-config -n prod                       fetch a ConfigMap live; kind/name in one argument
   s2t cm app-config -n prod                       fetch a ConfigMap live; kind and name as separate arguments
-  s2t diff a.yaml b.yaml                          compare two secrets' decoded contents key by key`,
+  s2t diff a.yaml b.yaml                          compare two secrets' decoded contents key by key
+  s2t set db-creds -n prod password=s3cret        upsert plaintext keys into a live secret
+  s2t edit db-creds -n prod                       edit a live secret's values in $EDITOR`,
 	Args:          cobra.MaximumNArgs(2),
 	SilenceUsage:  true,
 	SilenceErrors: true,
@@ -91,6 +93,8 @@ func init() {
 	})
 
 	rootCmd.AddCommand(diffCmd)
+	rootCmd.AddCommand(setCmd)
+	rootCmd.AddCommand(editCmd)
 }
 
 // completeNamespaces offers real namespace names, fetched live via kubectl,
