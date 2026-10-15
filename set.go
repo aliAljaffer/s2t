@@ -66,13 +66,10 @@ func init() {
 
 func runSet(cmd *cobra.Command, args []string) error {
 	name := args[0]
-	if parsedKind, plainName, ok, err := splitKindName(name); err != nil {
+	var err error
+	kind, name, err = resolveKind(kind, name, cmd.Flags().Changed("kind"))
+	if err != nil {
 		return err
-	} else if ok {
-		if cmd.Flags().Changed("kind") && kind != parsedKind {
-			return fmt.Errorf("--kind %s conflicts with resource kind %q in %q", kind, parsedKind, name)
-		}
-		kind, name = parsedKind, plainName
 	}
 
 	switch setOutput {
@@ -148,11 +145,9 @@ func runSet(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	if setNamespace == "" {
-		setNamespace, err = resolveNamespace(setKubeconfig)
-		if err != nil {
-			return fmt.Errorf("resolving current namespace: %w", err)
-		}
+	setNamespace, err = defaultNamespace(setNamespace, setKubeconfig)
+	if err != nil {
+		return err
 	}
 
 	fmt.Fprintf(os.Stderr, "applying merge patch to %s/%s in namespace %s\n", kind, name, setNamespace)
@@ -243,12 +238,6 @@ func flatten(v any, prefix string, out DecodedData, separator string) error {
 				return err
 			}
 		}
-	case map[any]any:
-		converted := make(map[string]any, len(val))
-		for k, item := range val {
-			converted[fmt.Sprint(k)] = item
-		}
-		return flatten(converted, prefix, out, separator)
 	case []any:
 		for i, item := range val {
 			if err := flatten(item, fmt.Sprintf("%s%s%d", prefix, separator, i), out, separator); err != nil {

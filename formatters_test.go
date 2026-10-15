@@ -40,7 +40,7 @@ func TestPatchJSONFormatter(t *testing.T) {
 	var out bytes.Buffer
 	data := DecodedData{"username": "user", "password": "pass123"}
 
-	if err := (patchJSONFormatter{kind: kindSecret}).Format(&out, data); err != nil {
+	if err := (patchJSONFormatter{kind: kindSecret, indent: true}).Format(&out, data); err != nil {
 		t.Fatalf("Format() error = %v", err)
 	}
 
@@ -54,7 +54,7 @@ func TestPatchJSONFormatterConfigMap(t *testing.T) {
 	var out bytes.Buffer
 	data := DecodedData{"config.yaml": "key: value"}
 
-	if err := (patchJSONFormatter{kind: kindConfigMap}).Format(&out, data); err != nil {
+	if err := (patchJSONFormatter{kind: kindConfigMap, indent: true}).Format(&out, data); err != nil {
 		t.Fatalf("Format() error = %v", err)
 	}
 
@@ -68,7 +68,7 @@ func TestPatchJSONCompactFormatter(t *testing.T) {
 	var out bytes.Buffer
 	data := DecodedData{"username": "user", "password": "pass123"}
 
-	if err := (patchJSONCompactFormatter{kind: kindSecret}).Format(&out, data); err != nil {
+	if err := (patchJSONFormatter{kind: kindSecret}).Format(&out, data); err != nil {
 		t.Fatalf("Format() error = %v", err)
 	}
 
@@ -124,7 +124,8 @@ func TestFormatterFor(t *testing.T) {
 	}{
 		{output: "", want: plainFormatter{}},
 		{output: "env", want: envFormatter{}},
-		{output: "json", want: patchJSONFormatter{kind: kindSecret}},
+		{output: "json", want: patchJSONFormatter{kind: kindSecret, indent: true}},
+		{output: "jsonc", want: patchJSONFormatter{kind: kindSecret}},
 		{output: "yaml", want: patchYAMLFormatter{kind: kindSecret}},
 		{output: "toml", wantErr: true},
 	}

@@ -52,22 +52,14 @@ func runEdit(cmd *cobra.Command, name string) error {
 		return fmt.Errorf("invalid -o %q for edit (want env, yaml, or json)", editOutput)
 	}
 
-	if parsedKind, plainName, ok, err := splitKindName(name); err != nil {
+	kind, name, err := resolveKind(kind, name, cmd.Flags().Changed("kind"))
+	if err != nil {
 		return err
-	} else if ok {
-		if cmd.Flags().Changed("kind") && kind != parsedKind {
-			return fmt.Errorf("--kind %s conflicts with resource kind %q in %q", kind, parsedKind, name)
-		}
-		kind, name = parsedKind, plainName
 	}
 
-	namespace := editNamespace
-	if namespace == "" {
-		var err error
-		namespace, err = resolveNamespace(editKubeconfig)
-		if err != nil {
-			return fmt.Errorf("resolving current namespace: %w", err)
-		}
+	namespace, err := defaultNamespace(editNamespace, editKubeconfig)
+	if err != nil {
+		return err
 	}
 
 	raw, err := fetchResourceJSON(kind, namespace, name, editKubeconfig)

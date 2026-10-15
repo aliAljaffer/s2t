@@ -191,19 +191,13 @@ func run(cmd *cobra.Command, file, format, kind, namespace, name, only, output, 
 
 	switch {
 	case name != "":
-		if parsedKind, plainName, ok, splitErr := splitKindName(name); splitErr != nil {
-			return splitErr
-		} else if ok {
-			if cmd.Flags().Changed("kind") && kind != parsedKind {
-				return fmt.Errorf("--kind %s conflicts with resource kind %q in --name %q", kind, parsedKind, name)
-			}
-			kind, name = parsedKind, plainName
+		kind, name, err = resolveKind(kind, name, cmd.Flags().Changed("kind"))
+		if err != nil {
+			return err
 		}
-		if namespace == "" {
-			namespace, err = resolveNamespace(kubeconfig)
-			if err != nil {
-				return fmt.Errorf("resolving current namespace: %w", err)
-			}
+		namespace, err = defaultNamespace(namespace, kubeconfig)
+		if err != nil {
+			return err
 		}
 		raw, err = fetchResourceJSON(kind, namespace, name, kubeconfig)
 		format = "json" // kubectl -o json always produces JSON, so we force the parser choice
@@ -219,10 +213,6 @@ func run(cmd *cobra.Command, file, format, kind, namespace, name, only, output, 
 
 	if err != nil {
 		return fmt.Errorf("reading input: %w", err)
-	}
-
-	if format == "" {
-		return errors.New("--format is required (yaml, json, or kv)")
 	}
 
 	parser, err := parserFor(format, kind)

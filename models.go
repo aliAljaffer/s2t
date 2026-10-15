@@ -59,6 +59,24 @@ func splitKindName(raw string) (kind, name string, ok bool, err error) {
 	return kind, rest, true, nil
 }
 
+// resolveKind folds a possibly "kind/name"-prefixed name (e.g. "cm/my-cm")
+// into the active kind. kindChanged reports whether --kind was set explicitly:
+// when it was and disagrees with the prefix, that's a conflict; callers with no
+// --kind flag (diff's per-side override) pass false so the prefix just wins.
+func resolveKind(kind, name string, kindChanged bool) (string, string, error) {
+	parsedKind, plainName, ok, err := splitKindName(name)
+	if err != nil {
+		return "", "", err
+	}
+	if !ok {
+		return kind, name, nil
+	}
+	if kindChanged && kind != parsedKind {
+		return "", "", fmt.Errorf("--kind %s conflicts with resource kind %q in %q", kind, parsedKind, name)
+	}
+	return parsedKind, plainName, nil
+}
+
 func parserFor(format, kind string) (Parser, error) {
 	switch strings.ToLower(format) {
 	case "yaml", "yml":
