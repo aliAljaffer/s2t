@@ -95,6 +95,20 @@ func resolveNamespace(kubeconfig string) (string, error) {
 	return ns, nil
 }
 
+// defaultNamespace returns ns unchanged when set, otherwise resolves the
+// kubeconfig's current-context namespace, mirroring what kubectl does when
+// -n/--namespace is omitted.
+func defaultNamespace(ns, kubeconfig string) (string, error) {
+	if ns != "" {
+		return ns, nil
+	}
+	ns, err := resolveNamespace(kubeconfig)
+	if err != nil {
+		return "", fmt.Errorf("resolving current namespace: %w", err)
+	}
+	return ns, nil
+}
+
 // kubectlCurrentNamespace is the completion entry point for currentNamespace:
 // bounded by completionTimeout, and any failure degrades to "" (no
 // completions) rather than an error, consistent with kubectlResourceNames.

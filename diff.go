@@ -132,18 +132,14 @@ func isFile(path string) bool {
 // overrides kind for this source only, matching the root command's own
 // kind/name positional syntax.
 func decodeLive(name, kind, namespace, kubeconfig string) (DecodedData, error) {
-	if parsedKind, plainName, ok, err := splitKindName(name); err != nil {
+	kind, name, err := resolveKind(kind, name, false)
+	if err != nil {
 		return nil, err
-	} else if ok {
-		kind, name = parsedKind, plainName
 	}
 
-	if namespace == "" {
-		var err error
-		namespace, err = resolveNamespace(kubeconfig)
-		if err != nil {
-			return nil, fmt.Errorf("resolving current namespace: %w", err)
-		}
+	namespace, err = defaultNamespace(namespace, kubeconfig)
+	if err != nil {
+		return nil, err
 	}
 
 	raw, err := fetchResourceJSON(kind, namespace, name, kubeconfig)

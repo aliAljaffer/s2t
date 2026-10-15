@@ -23,9 +23,9 @@ func formatterFor(output, kind string) (Formatter, error) {
 	case "env":
 		return envFormatter{}, nil
 	case "json":
-		return patchJSONFormatter{kind: kind}, nil
+		return patchJSONFormatter{kind: kind, indent: true}, nil
 	case "jsonc":
-		return patchJSONCompactFormatter{kind: kind}, nil
+		return patchJSONFormatter{kind: kind}, nil
 	case "yaml":
 		return patchYAMLFormatter{kind: kind}, nil
 	default:
@@ -73,21 +73,23 @@ func patchPayload(kind string, data DecodedData) map[string]DecodedData {
 	return map[string]DecodedData{key: data}
 }
 
-type patchJSONFormatter struct{ kind string }
-
-func (f patchJSONFormatter) Format(out io.Writer, data DecodedData) error {
-	encoded, err := json.MarshalIndent(patchPayload(f.kind, data), "", "  ")
-	if err != nil {
-		return err
-	}
-	_, err = fmt.Fprintln(out, string(encoded))
-	return err
+type patchJSONFormatter struct {
+	kind   string
+	indent bool
 }
 
-type patchJSONCompactFormatter struct{ kind string }
+func (f patchJSONFormatter) Format(out io.Writer, data DecodedData) error {
+	payload := patchPayload(f.kind, data)
 
-func (f patchJSONCompactFormatter) Format(out io.Writer, data DecodedData) error {
-	encoded, err := json.Marshal(patchPayload(f.kind, data))
+	var (
+		encoded []byte
+		err     error
+	)
+	if f.indent {
+		encoded, err = json.MarshalIndent(payload, "", "  ")
+	} else {
+		encoded, err = json.Marshal(payload)
+	}
 	if err != nil {
 		return err
 	}
