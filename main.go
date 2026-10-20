@@ -96,6 +96,7 @@ func init() {
 	rootCmd.AddCommand(setCmd)
 	rootCmd.AddCommand(editCmd)
 	rootCmd.AddCommand(upgradeCmd)
+	rootCmd.AddCommand(versionCmd)
 }
 
 // completeNamespaces offers real namespace names, fetched live via kubectl,

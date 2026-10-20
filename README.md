@@ -33,7 +33,7 @@ The formula is [`Formula/s2t.rb`](Formula/s2t.rb) in this repo, and the
 tracks it. It builds from source, so it needs a Go toolchain of at least the
 version in `go.mod` (a dependency, `sealed-secrets`, sets that floor).
 
-To upgrade, run `s2t upgrade` (Homebrew installs only).
+To upgrade, run `s2t upgrade`. Homebrew installs use `brew upgrade`; all others download the latest release binary. From a source clone, run `make upgrade` (git pull, then rebuild and install).
 
 **2. `go install`** (needs Go 1.26+):
 

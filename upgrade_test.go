@@ -16,3 +16,33 @@ func TestIsHomebrewPath(t *testing.T) {
 		}
 	}
 }
+
+func TestIsNewer(t *testing.T) {
+	tests := []struct {
+		a, b string
+		want bool
+	}{
+		{"0.2.3", "0.2.1", true},
+		{"0.2.1", "0.2.1", false},
+		{"0.2.0", "0.2.1", false},
+		{"0.10.0", "0.9.9", true},
+		{"1.0", "0.9.9", true},
+		{"0.2.1", "dev", false},
+		{"0.2.3", "0.2.2-dev", true},
+		{"0.2.2", "0.2.2-dev", false},
+	}
+	for _, tt := range tests {
+		if got := isNewer(tt.a, tt.b); got != tt.want {
+			t.Errorf("isNewer(%q, %q) = %v, want %v", tt.a, tt.b, got, tt.want)
+		}
+	}
+}
+
+func TestAssetName(t *testing.T) {
+	if got := assetName("darwin", "arm64"); got != "s2t-darwin-arm64" {
+		t.Errorf("got %q", got)
+	}
+	if got := assetName("windows", "amd64"); got != "s2t-windows-amd64.exe" {
+		t.Errorf("got %q", got)
+	}
+}

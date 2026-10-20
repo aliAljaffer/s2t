@@ -1,6 +1,11 @@
 BINARY     := s2t
 BIN_DIR    := bin
 
+VERSION := $(shell git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//')-dev
+ifeq ($(VERSION),-dev)
+	VERSION := dev
+endif
+
 UNAME_S := $(shell uname -s 2>/dev/null)
 
 ifeq ($(OS),Windows_NT)
@@ -14,7 +19,7 @@ else
 	INSTALL_DIR := $(HOME)/.local/bin
 endif
 
-.PHONY: all build vet test install clean
+.PHONY: all build vet test install upgrade clean
 
 all: build
 
@@ -25,12 +30,16 @@ test:
 	go test ./...
 
 build: vet test
-	go build -o $(BIN_DIR)/$(BINARY_NAME) .
+	go build -ldflags "-X main.version=$(VERSION)" -o $(BIN_DIR)/$(BINARY_NAME) .
 
 install: build
 	mkdir -p $(INSTALL_DIR)
 	cp $(BIN_DIR)/$(BINARY_NAME) $(INSTALL_DIR)/$(BINARY_NAME)
 	@echo "Installed to $(INSTALL_DIR)/$(BINARY_NAME)"
+
+upgrade:
+	git pull --ff-only
+	$(MAKE) install
 
 clean:
 	rm -rf $(BIN_DIR)
