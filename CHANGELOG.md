@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.4] - 2026-10-20
+
+### Fixed
+
+- Tab completion no longer lists current-namespace resource names when nothing is typed and `-n` is not set, so `s2t <tab><tab>` shows only subcommands.
+
 ## [0.2.3] - 2026-10-20
 
 ### Changed

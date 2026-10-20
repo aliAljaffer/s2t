@@ -112,3 +112,10 @@ func TestFetchResourceJSONArgsOmitKubeconfigWhenUnset(t *testing.T) {
 		t.Errorf("args = %#v, want %#v", args, want)
 	}
 }
+
+func TestCompleteNamesEmptyPrefixWithoutNamespace(t *testing.T) {
+	got, _ := completeNames("", "", "")
+	if len(got) != 0 {
+		t.Fatalf("expected no completions, got %v", got)
+	}
+}
