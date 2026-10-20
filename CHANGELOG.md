@@ -9,7 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- `s2t upgrade` also upgrades `go install` builds, and prints instructions for other installs.
+- `s2t upgrade` now compares against the latest GitHub release, asks to confirm
+  (`--yes` skips the prompt), then downloads the checksum-verified binary for
+  this OS and architecture and replaces the running one. Homebrew installs
+  still run `brew upgrade`.
+
+### Added
+
+- `s2t version` prints the version and the OS/arch release asset `upgrade` would download.
 
 ## [0.2.2] - 2026-10-20
 
