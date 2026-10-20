@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- `s2t upgrade` also upgrades `go install` builds, and prints instructions for other installs.
+
 ## [0.2.2] - 2026-10-20
 
 ### Added

@@ -16,3 +16,13 @@ func TestIsHomebrewPath(t *testing.T) {
 		}
 	}
 }
+
+func TestIsGoInstallPath(t *testing.T) {
+	t.Setenv("GOBIN", "/tmp/gobin")
+	if !isGoInstallPath("/tmp/gobin/s2t") {
+		t.Error("binary in GOBIN should match")
+	}
+	if isGoInstallPath("/usr/local/bin/s2t") {
+		t.Error("binary elsewhere should not match")
+	}
+}
