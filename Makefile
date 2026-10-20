@@ -14,7 +14,7 @@ else
 	INSTALL_DIR := $(HOME)/.local/bin
 endif
 
-.PHONY: all build vet test install clean
+.PHONY: all build vet test install upgrade clean
 
 all: build
 
@@ -31,6 +31,10 @@ install: build
 	mkdir -p $(INSTALL_DIR)
 	cp $(BIN_DIR)/$(BINARY_NAME) $(INSTALL_DIR)/$(BINARY_NAME)
 	@echo "Installed to $(INSTALL_DIR)/$(BINARY_NAME)"
+
+upgrade:
+	git pull --ff-only
+	$(MAKE) install
 
 clean:
 	rm -rf $(BIN_DIR)
