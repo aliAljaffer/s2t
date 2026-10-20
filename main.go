@@ -95,12 +95,19 @@ func init() {
 	rootCmd.AddCommand(diffCmd)
 	rootCmd.AddCommand(setCmd)
 	rootCmd.AddCommand(editCmd)
+	rootCmd.AddCommand(upgradeCmd)
 }
 
 // completeNamespaces offers real namespace names, fetched live via kubectl,
 // for shell completion of --namespace/-n.
-func completeNamespaces(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
-	return matchPrefix(kubectlResourceNames("namespace", "", kubeconfig), toComplete), cobra.ShellCompDirectiveNoFileComp
+var completeNamespaces = namespaceCompleter(&kubeconfig)
+
+// namespaceCompleter completes namespaces using the kubeconfig held in *kc,
+// so subcommands with their own --kubeconfig variable can reuse it.
+func namespaceCompleter(kc *string) func(*cobra.Command, []string, string) ([]string, cobra.ShellCompDirective) {
+	return func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+		return matchPrefix(kubectlResourceNames("namespace", "", *kc), toComplete), cobra.ShellCompDirectiveNoFileComp
+	}
 }
 
 // completeResourceNames offers real secret or configmap names (per --kind,
@@ -108,7 +115,29 @@ func completeNamespaces(cmd *cobra.Command, args []string, toComplete string) ([
 // within the namespace already typed on the command line, falling back to
 // the kubeconfig's current-context namespace (matching kubectl's own
 // resolution) when --namespace isn't typed yet.
-func completeResourceNames(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+var completeResourceNames = nameCompleter(&namespace, &kubeconfig)
+
+// nameCompleter completes resource names using the namespace and kubeconfig
+// held in *nsFlag and *kc.
+func nameCompleter(nsFlag, kc *string) func(*cobra.Command, []string, string) ([]string, cobra.ShellCompDirective) {
+	return func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+		return completeNames(*nsFlag, *kc, toComplete)
+	}
+}
+
+// firstArgNameCompleter is nameCompleter for commands whose later arguments
+// are not resource names (set's key=value pairs, edit's single argument).
+func firstArgNameCompleter(nsFlag, kc *string) func(*cobra.Command, []string, string) ([]string, cobra.ShellCompDirective) {
+	complete := nameCompleter(nsFlag, kc)
+	return func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+		if len(args) > 0 {
+			return nil, cobra.ShellCompDirectiveNoFileComp
+		}
+		return complete(cmd, args, toComplete)
+	}
+}
+
+func completeNames(namespace, kubeconfig, toComplete string) ([]string, cobra.ShellCompDirective) {
 	ns := namespace
 	if ns == "" {
 		ns = kubectlCurrentNamespace(kubeconfig)

@@ -30,9 +30,10 @@ encodes them); deleted keys are removed with a null in data.
 Nothing is written to the cluster until you confirm at the prompt.`,
 	Example: `  s2t edit db-creds -n prod
   s2t edit cm/app-config -n prod -o yaml`,
-	Args:          cobra.ExactArgs(1),
-	SilenceUsage:  true,
-	SilenceErrors: true,
+	Args:              cobra.ExactArgs(1),
+	ValidArgsFunction: firstArgNameCompleter(&editNamespace, &editKubeconfig),
+	SilenceUsage:      true,
+	SilenceErrors:     true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return runEdit(cmd, args[0])
 	},
@@ -43,6 +44,7 @@ func init() {
 	flags.StringVarP(&editNamespace, "namespace", "n", "", "kubernetes namespace of the resource (defaults to the kubeconfig's current context)")
 	flags.StringVarP(&editKubeconfig, "kubeconfig", "", "", "path to the kubeconfig file to use; if omitted, kubectl resolves it itself from $KUBECONFIG or ~/.kube/config")
 	flags.StringVarP(&editOutput, "output", "o", "env", "edit format: env (KEY=value), yaml, or json")
+	editCmd.RegisterFlagCompletionFunc("namespace", namespaceCompleter(&editKubeconfig))
 }
 
 func runEdit(cmd *cobra.Command, name string) error {

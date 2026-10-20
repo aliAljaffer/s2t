@@ -45,9 +45,10 @@ appsettings files map straight onto secret keys.`,
   s2t set db-creds -n prod username=admin password=s3cret --apply
   s2t set db-creds -n prod < values.env           # prints a merge patch to stdout
   s2t set cm/app-config -n prod feature.flag=on --apply --dry-run`,
-	Args:          cobra.MinimumNArgs(1),
-	SilenceUsage:  true,
-	SilenceErrors: true,
+	Args:              cobra.MinimumNArgs(1),
+	ValidArgsFunction: firstArgNameCompleter(&setNamespace, &setKubeconfig),
+	SilenceUsage:      true,
+	SilenceErrors:     true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return runSet(cmd, args)
 	},
@@ -61,6 +62,7 @@ func init() {
 	flags.StringVarP(&setOutput, "output", "o", "jsonc", "patch payload format: jsonc (compact), json, or yaml")
 	flags.BoolVarP(&setApply, "apply", "", false, "apply the merge patch to the cluster with kubectl patch (default: print the patch only)")
 	flags.BoolVarP(&setDryRun, "dry-run", "", false, "with --apply, validate server-side using kubectl --dry-run=server without writing")
+	setCmd.RegisterFlagCompletionFunc("namespace", namespaceCompleter(&setKubeconfig))
 	flags.StringVarP(&setSeparator, "separator", "", defaultSeparator, "separator used to flatten nested JSON/YAML keys")
 }
 

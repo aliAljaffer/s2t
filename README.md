@@ -12,7 +12,8 @@
 A small CLI that decodes Kubernetes Secrets into readable key/value pairs.
 Reads a raw manifest (YAML or JSON), a custom `key: value` blob, or fetches a
 live secret via `kubectl`, base64-decodes every value, and prints the result
-in a few different shapes.
+in a few different shapes. It can also diff secrets (`s2t diff`) and update
+live ones (`s2t set`, `s2t edit`).
 
 `kubectl` is only required for live-fetching a resource by name. Decoding a
 file (`-f`) or piped stdin doesn't need it installed at all.
@@ -31,6 +32,8 @@ The formula is [`Formula/s2t.rb`](Formula/s2t.rb) in this repo, and the
 [`alialjaffer/homebrew-tap`](https://github.com/alialjaffer/homebrew-tap) tap
 tracks it. It builds from source, so it needs a Go toolchain of at least the
 version in `go.mod` (a dependency, `sealed-secrets`, sets that floor).
+
+To upgrade, run `s2t upgrade` (Homebrew installs only).
 
 **2. `go install`** (needs Go 1.26+):
 
@@ -107,7 +110,7 @@ $ s2t argocd-initial-admin-secret -n argocd -ojsonc # print as compact json (sin
 | `-f`, `--file`      | Path to a file containing secret data                                                                                                           | `stdin`                                                 |
 | `-t`, `--format`    | Input format: `yaml`, `json`, `kv`, or `sealed-secret` (`sealed-secret` must be requested explicitly), if empty, use `any` which auto-detects   | `any`                                                   |
 | `-k`, `--kind`      | Resource kind: `secret` or `configmap`                                                                                                          | `secret`                                                |
-| `--name`            | Same as the positional `[name]` argument; useful if you'd rather be explicit or the name collides with a subcommand (e.g. `diff`)               | -                                                       |
+| `--name`            | Same as the positional `[name]` argument; useful if you'd rather be explicit or the name collides with a subcommand (e.g. `diff`, `set`, `edit`)               | -                                                       |
 | `-n`, `--namespace` | Kubernetes namespace (used when fetching a resource by name)                                                                                    | defaults to the kubeconfig's current context if omitted |
 | `--kubeconfig`      | Path to the kubeconfig file to use                                                                                                              | `~/.kube/config`                                        |
 | `--only`            | Comma-separated list of keys to print                                                                                                           | -                                                       |
