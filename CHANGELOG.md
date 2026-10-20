@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.3] - 2026-10-20
+
 ### Changed
 
 - `s2t upgrade` now compares against the latest GitHub release, asks to confirm
