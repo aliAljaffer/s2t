@@ -141,6 +141,9 @@ func firstArgNameCompleter(nsFlag, kc *string) func(*cobra.Command, []string, st
 func completeNames(namespace, kubeconfig, toComplete string) ([]string, cobra.ShellCompDirective) {
 	ns := namespace
 	if ns == "" {
+		if toComplete == "" {
+			return nil, cobra.ShellCompDirectiveNoFileComp
+		}
 		ns = kubectlCurrentNamespace(kubeconfig)
 	}
 	if ns == "" {
