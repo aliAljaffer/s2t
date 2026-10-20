@@ -115,7 +115,8 @@ func latestTag() (string, error) {
 }
 
 // isNewer reports whether version a is greater than b, comparing the numeric
-// dot-separated parts. Anything unparseable counts as not newer.
+// dot-separated parts, ignoring a "-dev" style suffix. Anything unparseable
+// counts as not newer.
 func isNewer(a, b string) bool {
 	pa, pb := versionParts(a), versionParts(b)
 	if pa == nil || pb == nil {
@@ -137,8 +138,9 @@ func isNewer(a, b string) bool {
 }
 
 func versionParts(v string) []int {
+	core, _, _ := strings.Cut(strings.TrimPrefix(v, "v"), "-")
 	var parts []int
-	for _, s := range strings.Split(strings.TrimPrefix(v, "v"), ".") {
+	for _, s := range strings.Split(core, ".") {
 		n, err := strconv.Atoi(s)
 		if err != nil {
 			return nil

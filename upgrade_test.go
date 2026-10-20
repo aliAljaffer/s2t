@@ -28,6 +28,8 @@ func TestIsNewer(t *testing.T) {
 		{"0.10.0", "0.9.9", true},
 		{"1.0", "0.9.9", true},
 		{"0.2.1", "dev", false},
+		{"0.2.3", "0.2.2-dev", true},
+		{"0.2.2", "0.2.2-dev", false},
 	}
 	for _, tt := range tests {
 		if got := isNewer(tt.a, tt.b); got != tt.want {

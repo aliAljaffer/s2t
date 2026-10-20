@@ -16,7 +16,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- `make upgrade` pulls the latest source and reinstalls.
+- `make upgrade` pulls the latest source and reinstalls. Source builds report
+  the latest tag plus `-dev` (for example `0.2.2-dev`) instead of `dev`.
 - `s2t version` prints the version and the OS/arch release asset `upgrade` would download.
 
 ## [0.2.2] - 2026-10-20
