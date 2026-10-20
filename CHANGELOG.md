@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-10-20
+
+### Added
+
+- `s2t upgrade` runs `brew upgrade alialjaffer/tap/s2t` for Homebrew installs.
+
+### Fixed
+
+- `s2t set` and `s2t edit` now tab-complete resource names and `--namespace`.
+
 ## [0.2.0] - 2026-10-09
 
 ### Added

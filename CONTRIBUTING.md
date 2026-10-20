@@ -34,7 +34,7 @@ own PRs), but review threads must be resolved first.
 - Run `gofmt` before committing; CI checks `go vet` and `go test` on every
   push and PR.
 - Keep `main.go` thin — parsing/formatting logic belongs in its own file
-  (see `models.go`, `decode.go`, `formatters.go`, `fetch.go` for the existing
+  (see `models.go`, `decode.go`, `formatters.go`, `fetch.go`, `diff.go`, `set.go`, `edit.go` for the existing
   split).
 - Avoid adding dependencies for things the standard library already covers.
 
