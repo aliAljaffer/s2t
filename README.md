@@ -22,7 +22,9 @@ file (`-f`) or piped stdin doesn't need it installed at all.
 
 Four options:
 
-**1. Homebrew** (macOS and Linux):
+### Homebrew
+
+For macOS and Linux:
 
 ```bash
 brew install alialjaffer/tap/s2t
@@ -33,15 +35,17 @@ The formula is [`Formula/s2t.rb`](Formula/s2t.rb) in this repo, and the
 tracks it. It builds from source, so it needs a Go toolchain of at least the
 version in `go.mod` (a dependency, `sealed-secrets`, sets that floor).
 
-To upgrade, run `s2t upgrade`. Homebrew installs use `brew upgrade`; all others download the latest release binary. From a source clone, run `make upgrade` (git pull, then rebuild and install).
+### go install
 
-**2. `go install`** (needs Go 1.26+):
+Needs Go 1.26+:
 
 ```bash
 go install github.com/alialjaffer/s2t@latest
 ```
 
-**3. Prebuilt binary** from [Releases](https://github.com/alialjaffer/s2t/releases), for Windows, macOS, and Linux (amd64 and arm64). Verify with `checksums.txt` if you like:
+### Prebuilt binary
+
+Download a binary from [Releases](https://github.com/alialjaffer/s2t/releases), for Windows, macOS, and Linux (amd64 and arm64). Verify with `checksums.txt` if you like:
 
 ```bash
 # macOS (Apple Silicon) example
@@ -49,7 +53,7 @@ curl -fLO https://github.com/alialjaffer/s2t/releases/latest/download/s2t-darwin
 chmod +x s2t-darwin-arm64 && mv s2t-darwin-arm64 ~/.local/bin/s2t
 ```
 
-**4. From source:**
+### From source
 
 ```bash
 git clone https://github.com/alialjaffer/s2t.git
@@ -58,6 +62,16 @@ make install
 ```
 
 `make install` runs `go vet` and the tests, builds the binary, and copies it to `~/.local/bin/s2t`. Make sure that directory is on your `PATH`.
+
+### Upgrade
+
+| Install method | Upgrade with |
+|---|---|
+| Homebrew | `s2t upgrade` (uses `brew upgrade`) |
+| Other installs | `s2t upgrade` (downloads the latest release binary) |
+| Source clone | `make upgrade` (git pull, then rebuild and install) |
+
+### Releases
 
 Releases are cut automatically: pushing a `v*` tag (e.g. `v0.1.0`) triggers [.github/workflows/release.yml](.github/workflows/release.yml), which builds and attaches the binaries to a GitHub Release, then rewrites `Formula/s2t.rb`'s `url` and `sha256` for that tag and pushes it to the tap. The tap push needs a `HOMEBREW_TAP_TOKEN` secret in this repo holding a token with `contents: write` on `alialjaffer/homebrew-tap`.
 
@@ -120,31 +134,41 @@ $ s2t argocd-initial-admin-secret -n argocd -ojsonc # print as compact json (sin
 
 ### Real Use Cases
 
-**Patch a live secret** from an edited local file — `-o jsonc` produces a compact, single-line `stringData` payload that's directly usable as a `kubectl patch` argument (the API server base64-encodes it server-side):
+#### Patch a live secret
+
+Patch from an edited local file. `-o jsonc` produces a compact, single-line `stringData` payload that's directly usable as a `kubectl patch` argument (the API server base64-encodes it server-side):
 
 ```bash
 kubectl patch secret db-creds -n prod --type merge -p "$(s2t -f secret.yaml -o jsonc)"
 ```
 
-**Export a live secret as a `.env` file** for local development:
+#### Export a live secret as a `.env` file
+
+Export for local development:
 
 ```bash
 s2t db-creds -n staging -o env > .env
 ```
 
-**Diff two secret files' decoded values**, key by key, with `s2t diff` (see [Diffing secrets](#diffing-secrets) below):
+#### Diff two secret files' decoded values
+
+Compare key by key with `s2t diff` (see [Diffing secrets](#diffing-secrets) below):
 
 ```bash
 s2t diff staging.yaml prod.yaml
 ```
 
-**Diff a live secret across two namespaces** directly, no shell trick needed:
+#### Diff a live secret across two namespaces
+
+Diff directly, no shell trick needed:
 
 ```bash
 s2t diff db-creds db-creds -n staging -B prod
 ```
 
-**Grab a single value for scripting**, combining `--only` with `-o env`:
+#### Grab a single value for scripting
+
+Combine `--only` with `-o env`:
 
 ```bash
 PASSWORD=$(s2t -f secret.yaml --only password -o env | cut -d= -f2-)
@@ -159,7 +183,10 @@ export S2T_SEALED_SECRETS_KEY_FILE=~/.config/s2t/sealed-secrets-key.pem
 s2t -f sealed.yaml -t sealed-secret
 ```
 
-The key is read from a file path, not the env var's value directly, so the key material never touches argv or the environment itself. This isn't auto-detected by `-t any` — it must be requested explicitly, since it depends on external key material that no other format needs.
+The key is read from a file path, not the env var's value directly, so the key material never touches argv or the environment itself.
+
+> [!NOTE]
+> This isn't auto-detected by `-t any`. It must be requested explicitly, since it depends on external key material that no other format needs.
 
 ### ConfigMaps
 
@@ -191,7 +218,8 @@ If a positional kind is given and `-k` is also passed with a different kind, `s2
 s2t -f secret.yaml --mask
 ```
 
-`--mask` cannot be combined with `-o json`, `jsonc`, or `yaml`: those produce a `kubectl patch`-ready payload, and a masked value would silently overwrite the real secret with the literal string `"********"` if applied. `s2t` refuses this combination outright rather than risk it.
+> [!WARNING]
+> `--mask` cannot be combined with `-o json`, `jsonc`, or `yaml`: those produce a `kubectl patch`-ready payload, and a masked value would silently overwrite the real secret with the literal string `"********"` if applied. `s2t` refuses this combination outright rather than risk it.
 
 ### Upserting values with `s2t set`
 
@@ -237,10 +265,11 @@ cat appsettings.json | s2t set db-creds -n prod Feature__Enabled=true --apply
 
 becomes the patch `{"stringData":{"ConnectionStrings__Default":"Server=db","Feature__Enabled":"true"}}`
 (the second command overrides the file's `Feature.Enabled=false`).
-Arrays are indexed (`Servers__0`, `Servers__1`), and a command-line pair always
-wins over the same key from a file/stdin (with a warning). Keys must be valid
-Kubernetes keys (alphanumerics, `-`, `_`, `.`); `-k configmap` patches a
-ConfigMap's plaintext `data` instead.
+
+- Arrays are indexed (`Servers__0`, `Servers__1`).
+- A command-line pair always wins over the same key from a file/stdin (with a warning).
+- Keys must be valid Kubernetes keys (alphanumerics, `-`, `_`, `.`).
+- `-k configmap` patches a ConfigMap's plaintext `data` instead.
 
 A positional pair is always `key=value`, and multiple pairs can be comma-joined
 in one argument (`key1=val1,key2=val2`) or passed separately. Because commas
@@ -260,10 +289,12 @@ separate pairs, use JSON/YAML input for a value that itself contains a comma.
 
 ### Editing a live secret with `s2t edit`
 
-`s2t edit <name> -n <ns>` fetches a live resource, shows **only its data keys**
-(no metadata, labels, or annotations) in `$EDITOR`, and prints a merge patch for
-whatever you changed: added/updated keys go through `stringData`, deleted keys
-are removed with a `null` in `data`. It then asks whether to apply:
+`s2t edit <name> -n <ns>` does four things:
+
+1. Fetches a live resource.
+2. Shows **only its data keys** (no metadata, labels, or annotations) in `$EDITOR`.
+3. Prints a merge patch for whatever you changed: added/updated keys go through `stringData`, deleted keys are removed with a `null` in `data`.
+4. Asks whether to apply:
 
 ```bash
 s2t edit db-creds -n prod
