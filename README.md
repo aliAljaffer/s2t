@@ -295,7 +295,7 @@ newlines, so use `yaml`/`json` for those.
 s2t diff staging.yaml prod.yaml
 ```
 
-```
+```diff
 - deprecated-key
 + new-feature-flag
 ~ password
@@ -307,7 +307,7 @@ Values are hidden by default (diff output is more likely to end up pasted into a
 s2t diff --show-values staging.yaml prod.yaml
 ```
 
-```
+```diff
 - deprecated-key: old-value
 + new-feature-flag: enabled
 ~ password: staging-pass -> prod-pass
