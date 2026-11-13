@@ -18,6 +18,8 @@ live ones (`s2t set`, `s2t edit`).
 `kubectl` is only required for live-fetching a resource by name. Decoding a
 file (`-f`) or piped stdin doesn't need it installed at all.
 
+**Documentation:** [docs.alialjaffer.com/projects/s2t](https://docs.alialjaffer.com/projects/s2t/), including the full [command reference](https://docs.alialjaffer.com/projects/s2t/reference/).
+
 ## Install
 
 Four options:
@@ -76,6 +78,8 @@ make install
 Releases are cut automatically: pushing a `v*` tag (e.g. `v0.1.0`) triggers [.github/workflows/release.yml](.github/workflows/release.yml), which builds and attaches the binaries to a GitHub Release, then rewrites `Formula/s2t.rb`'s `url` and `sha256` for that tag and pushes it to the tap. The tap push needs a `HOMEBREW_TAP_TOKEN` secret in this repo holding a token with `contents: write` on `alialjaffer/homebrew-tap`.
 
 ## Usage
+
+For every command, flag, and example, see the [command reference](reference/index.md).
 
 ```bash
 s2t -h
