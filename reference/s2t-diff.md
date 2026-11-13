@@ -91,7 +91,7 @@ data:
 s2t diff staging.yaml prod.yaml
 ```
 
-```text
+```diff
 + feature-flag
 - host
 ~ password
@@ -106,7 +106,7 @@ s2t diff staging.yaml prod.yaml
 s2t diff --show-values staging.yaml prod.yaml
 ```
 
-```text
+```diff
 + feature-flag: enabled
 - host: db.prod.internal
 ~ password: s3cret -> prod-pass
